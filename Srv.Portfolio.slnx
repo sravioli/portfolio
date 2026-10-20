@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Srv.Portfolio/Srv.Portfolio.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Srv.Portfolio.Tests/Srv.Portfolio.Tests.csproj" />
+  </Folder>
 </Solution>
