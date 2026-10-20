@@ -32,6 +32,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Subset application symbol font
+        run: |
+          python -m pip install -r src/tools/font-requirements.txt
+          python src/tools/subset-symbol-font.py
+          python -m unittest discover -s tests/tools
       # Minify before publishing so asset hashes and compressed copies match.
       - name: Minify application JavaScript
         run: >-

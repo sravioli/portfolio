@@ -7,7 +7,7 @@
 
 @font-face {
   font-family: "Symbols Nerd Font";
-  src: url("../fonts/SymbolsNerdFont-Regular.woff2") format("woff2");
+  src: url("../fonts/SymbolsNerdFont-Subset.woff2") format("woff2");
   font-display: swap;
   unicode-range: U+E000-F8FF, U+F0000-FFFFD;
 }
