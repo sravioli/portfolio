@@ -448,7 +448,7 @@
                 _scrollPosition = "All";
                 try
                 {
-                    _renderedDocument = MarkdownProcessor.Render(source, entry);
+                    _renderedDocument = Readmes.Render(source, entry);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {

@@ -16,6 +16,63 @@ internal sealed class ReadmeServiceTests : IDisposable
     }
 
     [Test]
+    public void Render_UnchangedSource_ReusesSanitizedHtml()
+    {
+        using var handler = new RecordingHandler();
+        var service = CreateService(handler);
+        const string source = "# Cached\n\n<script>alert(1)</script>\n\nText";
+
+        var first = service.Render(source, PortfolioCatalog.RootEntry);
+        var second = service.Render(new string(source.ToCharArray()), PortfolioCatalog.RootEntry);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first, Does.Contain("id=\"readme-cached\""));
+            Assert.That(first, Does.Not.Contain("<script"));
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(handler.RequestCount, Is.Zero);
+        }
+    }
+
+    [Test]
+    public void Render_ChangedSource_ReplacesCachedHtml()
+    {
+        using var handler = new RecordingHandler();
+        var service = CreateService(handler);
+        service.Render("# Original", PortfolioCatalog.RootEntry);
+
+        var updated = service.Render("# Updated", PortfolioCatalog.RootEntry);
+        var repeated = service.Render("# Updated", PortfolioCatalog.RootEntry);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(updated, Does.Contain("id=\"readme-updated\""));
+            Assert.That(updated, Does.Not.Contain("Original"));
+            Assert.That(repeated, Is.SameAs(updated));
+        }
+    }
+
+    [Test]
+    public void Render_DifferentRepositoryOrPath_ResolvesEachContext()
+    {
+        using var handler = new RecordingHandler();
+        var service = CreateService(handler);
+        var chrono = PortfolioCatalog.Find("chrono")!;
+        const string source = "[Guide](guide.md)";
+
+        var first = service.Render(source, chrono);
+        var repository = service.Render(source, chrono with { Repository = "wezterm" });
+        var path = service.Render(source, chrono with { ReadmePath = "docs/README.md" });
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first, Does.Contain("/chrono/blob/main/.github/guide.md"));
+            Assert.That(repository, Does.Contain("/wezterm/blob/main/.github/guide.md"));
+            Assert.That(path, Does.Contain("/chrono/blob/main/docs/guide.md"));
+        }
+    }
+
+    [Test]
     public async Task GetAsyncRootReadmeUsesLocalPortfolioContent()
     {
         using var handler = new RecordingHandler();

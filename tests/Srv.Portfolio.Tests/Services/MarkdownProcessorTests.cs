@@ -5,6 +5,39 @@ namespace Srv.Portfolio.Tests.Services;
 [TestFixture]
 internal sealed class MarkdownProcessorTests
 {
+    [TestCase("<a href=\"javascript:alert(1)\">unsafe</a>")]
+    [TestCase("<a href=\"jav&#x61;script:alert(1)\">unsafe</a>")]
+    [TestCase("<img src=\"data:text/html,unsafe\" onerror=\"alert(1)\">")]
+    [TestCase("<svg><a href=\"javascript:alert(1)\">unsafe</a></svg>")]
+    [TestCase("<math><mtext><img src=\"x\" onerror=\"alert(1)\"></mtext></math>")]
+    public void Render_UnsafeDom_RemovesExecutableContent(string source)
+    {
+        var html = MarkdownProcessor.Render(source, PortfolioCatalog.RootEntry);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(html, Does.Not.Contain("javascript:").IgnoreCase);
+            Assert.That(html, Does.Not.Contain("data:text/html").IgnoreCase);
+            Assert.That(html, Does.Not.Contain("onerror").IgnoreCase);
+            Assert.That(html, Does.Not.Contain("<svg").IgnoreCase);
+            Assert.That(html, Does.Not.Contain("<math").IgnoreCase);
+        }
+    }
+
+    [Test]
+    public void Render_ReusedSanitizer_DoesNotRetainPreviousDocumentState()
+    {
+        MarkdownProcessor.Render("## Same\n\n## Same", PortfolioCatalog.RootEntry);
+
+        var html = MarkdownProcessor.Render("## Same\n\n[Link](#same)", PortfolioCatalog.RootEntry);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(html, Does.Contain("id=\"readme-same\""));
+            Assert.That(html, Does.Contain("href=\"#readme-same\""));
+            Assert.That(html, Does.Not.Contain("readme-same-1"));
+        }
+    }
+
     [Test]
     public void RenderStandaloneGithubAttachmentEmbedsControlledVideoAndFallbackLink()
     {

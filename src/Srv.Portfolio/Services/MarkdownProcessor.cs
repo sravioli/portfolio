@@ -13,15 +13,33 @@ internal static partial class MarkdownProcessor
         .UseAdvancedExtensions()
         .Build();
 
+    private static readonly HtmlSanitizer Sanitizer = CreateSanitizer();
+
     public static string Render(string source, PortfolioEntry entry)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(entry);
 
         var parser = new HtmlParser();
-        var document = parser.ParseDocument(Markdown.ToHtml(source, Pipeline));
+        using var document = parser.ParseDocument(Markdown.ToHtml(source, Pipeline));
         RewriteResourceUrls(document, entry);
 
+        // Sanitize the existing DOM; styles are forbidden, so CSS parsing is unnecessary.
+        Sanitizer.SanitizeDom(document, document.Body);
+        EmbedAttachmentVideos(document);
+        AddHeadingIdsAndResolveAnchors(document);
+        MarkInternalRepositoryLinks(document);
+        foreach (var image in document.QuerySelectorAll("img"))
+        {
+            image.SetAttribute("loading", "lazy");
+            image.SetAttribute("referrerpolicy", "no-referrer");
+        }
+
+        return document.Body?.InnerHtml ?? string.Empty;
+    }
+
+    private static HtmlSanitizer CreateSanitizer()
+    {
         var sanitizer = new HtmlSanitizer();
         sanitizer.AllowedTags.Clear();
         sanitizer.AllowedTags.UnionWith([
@@ -68,19 +86,7 @@ internal static partial class MarkdownProcessor
         sanitizer.AllowedSchemes.Clear();
         sanitizer.AllowedSchemes.UnionWith(["http", "https", "mailto"]);
 
-        var safeDocument = parser.ParseDocument(
-            sanitizer.Sanitize(document.Body?.InnerHtml ?? string.Empty)
-        );
-        EmbedAttachmentVideos(safeDocument);
-        AddHeadingIdsAndResolveAnchors(safeDocument);
-        MarkInternalRepositoryLinks(safeDocument);
-        foreach (var image in safeDocument.QuerySelectorAll("img"))
-        {
-            image.SetAttribute("loading", "lazy");
-            image.SetAttribute("referrerpolicy", "no-referrer");
-        }
-
-        return safeDocument.Body?.InnerHtml ?? string.Empty;
+        return sanitizer;
     }
 
     private static void EmbedAttachmentVideos(IDocument document)

@@ -16,7 +16,26 @@ internal sealed partial class ReadmeService(
     private static readonly TimeSpan DescriptionsLifetime = TimeSpan.FromHours(6);
 
     private readonly Dictionary<string, string> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<(string Repository, string? Path), (string Source, string Html)>
+        _renderedCache = [];
     private Dictionary<string, string?>? _descriptions;
+
+    public string Render(string source, PortfolioEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(entry);
+
+        var key = (entry.Repository, entry.ReadmePath);
+        if (_renderedCache.TryGetValue(key, out var cached) &&
+            string.Equals(cached.Source, source, StringComparison.Ordinal))
+        {
+            return cached.Html;
+        }
+
+        var html = MarkdownProcessor.Render(source, entry);
+        _renderedCache[key] = (source, html);
+        return html;
+    }
 
     public async Task<string> GetAsync(PortfolioEntry entry, CancellationToken cancellationToken)
     {
