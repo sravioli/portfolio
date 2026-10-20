@@ -42,8 +42,7 @@ internal static partial class CommandHandler
                 return CommandAction.SetLeader;
             }
 
-            state.Message =
-                "Leader must be one printable key. Use :let mapleader = \" \" for Space.";
+            state.ShowError("E474: Invalid argument: mapleader must be a single key");
             return CommandAction.Invalid;
         }
 
@@ -57,10 +56,7 @@ internal static partial class CommandHandler
             return CommandAction.ReturnToListing;
         }
 
-        if (
-            command.Equals("help", StringComparison.OrdinalIgnoreCase)
-            || command.Equals("h", StringComparison.OrdinalIgnoreCase)
-        )
+        if (HelpRegex().IsMatch(command))
         {
             state.IsHelpOpen = true;
             return CommandAction.OpenHelp;
@@ -111,7 +107,7 @@ internal static partial class CommandHandler
         {
             if (state.CurrentDocument is null)
             {
-                state.Message = "E32: No file name";
+                state.ShowError("E32: No file name");
                 return CommandAction.Invalid;
             }
 
@@ -120,7 +116,7 @@ internal static partial class CommandHandler
 
         if (command.Length > 0)
         {
-            state.Message = $"Not an available command: {command}. Try :Ex or :help.";
+            state.ShowError($"E492: Not an editor command: {command}");
             return CommandAction.Invalid;
         }
 
@@ -135,4 +131,10 @@ internal static partial class CommandHandler
 
     [GeneratedRegex(@"^set?\s+(no|inv)?(keys|dev)(!)?$", RegexOptions.CultureInvariant)]
     private static partial Regex BooleanOptionRegex();
+
+    [GeneratedRegex(
+        @"^h(?:elp)?(?:\s+\S.*)?$",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase
+    )]
+    private static partial Regex HelpRegex();
 }

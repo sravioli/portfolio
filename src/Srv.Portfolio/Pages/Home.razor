@@ -65,6 +65,26 @@
                     }
                 }
             </div>
+            @if (State.IsReading && _renderingFailed && !_loading && !_renderingNotificationDismissed)
+            {
+                <aside class="editor-notification" aria-label="Markdown rendering notification">
+                    <header class="editor-notification-header">
+                        <span class="editor-notification-icon" aria-hidden="true">!</span>
+                        <strong>Markdown</strong>
+                        <span class="editor-notification-level">ERROR</span>
+                        <button type="button" class="editor-notification-close" aria-label="Dismiss Markdown error"
+                                @onclick="() => _renderingNotificationDismissed = true">×</button>
+                    </header>
+                    <p role="alert">Could not render README.md. Showing raw text instead.</p>
+                    <button type="button" class="editor-notification-action"
+                            @onclick="() => Navigation.Refresh(forceReload: true)">Reload page</button>
+                </aside>
+            }
+            @if (_openError is not null)
+            {
+                <button type="button" class="editor-message-notification" role="alert"
+                        aria-label="Dismiss: @_openError" @onclick="DismissOpenError">@_openError</button>
+            }
             <section class="preview-scroll" data-welcome="@State.IsWelcome.ToString().ToLowerInvariant()" tabindex="0">
                 @if (State.IsWelcome)
                 {
@@ -75,21 +95,20 @@
                 }
                 else if (State.IsReading && _loadError is not null)
                 {
-                    <div class="load-error" role="alert">
-                        <p>Could not load this README: @_loadError</p>
-                        <p>Type <kbd>:e</kbd> to retry.</p>
-                        <button type="button" @onclick="RetryReadme">Retry</button>
+                    <div class="readme-load-error">
+                        <p class="readme-error-title" role="alert">E484: Can't open file README.md</p>
+                        <p class="readme-error-actions">
+                            <button type="button" @onclick="RetryReadme" aria-label=":e — retry opening README.md">:e</button>
+                            <span>Retry opening the file</span>
+                        </p>
+                        <details>
+                            <summary>Error details</summary>
+                            <p>@_loadError</p>
+                        </details>
                     </div>
                 }
                 else if (State.IsReading && _documentSource is not null && !_loading)
                 {
-                    @if (_renderingFailed)
-                    {
-                        <div class="load-error" role="alert">
-                            <p>Markdown rendering failed. Raw text is still available. Reload the page to retry downloading the renderer.</p>
-                            <button type="button" @onclick="() => Navigation.Refresh(forceReload: true)">Reload page</button>
-                        </div>
-                    }
                     @if (State.IsRawView)
                     {
                         <pre class="raw-readme" data-repository="@State.CurrentDocument?.Repository">@foreach (var line in _rawLines){<span class="raw-line">@line</span>}</pre>
@@ -122,7 +141,6 @@
         </main>
     </div>
 
-    <div class="message-line" aria-live="polite" aria-atomic="true">@State.Message</div>
     <footer class="statusline @((State.IsReading || State.IsCommandMode) && !_fileFinderOpen ? "reading-status" : "explorer-status") @(_fileFinderOpen ? "insert-status" : State.IsCommandMode ? "command-status" : "")">
         @if (_fileFinderOpen)
         {
@@ -187,8 +205,12 @@
 
     <form class="command-line" @onsubmit="SubmitCommand" @onsubmit:preventDefault>
         <label for="command-input" class="visually-hidden">Command</label>
-        <input id="command-input" @bind="State.CommandText" @bind:event="oninput" @onkeydown="HandleCommandKey"
-               placeholder="Type a command…" autocomplete="off" spellcheck="false" />
+        <div class="command-field">
+            <input id="command-input" @bind="State.CommandText" @bind:event="oninput" @onkeydown="HandleCommandKey"
+                   @onfocus="BeginCommandFromInput" @onblur="EndCommandFromInput"
+                   placeholder="@(ShowCommandMessage ? string.Empty : "Type a command…")" autocomplete="off" spellcheck="false" />
+            <output class="command-message @(State.IsErrorMessage ? "is-error" : "")" for="command-input" aria-live="polite" aria-atomic="true">@(ShowCommandMessage ? State.Message : null)</output>
+        </div>
     </form>
 </div>
 
@@ -219,7 +241,6 @@
             <h3>Commands</h3>
             <p class="help-note">Type them in the command line at the bottom.</p>
             <dl>
-                <dt><kbd>↑</kbd><kbd>↓</kbd></dt><dd>Browse command history</dd>
                 <dt><kbd>:e</kbd></dt><dd>Reload the README</dd>
                 <dt><kbd>:q</kbd></dt><dd>Return to the listing</dd>
                 <dt><kbd>:NvimTreeToggle</kbd></dt><dd>Show or hide the files</dd>
@@ -343,6 +364,9 @@
     private string? _loadError;
     private bool _loading;
     private bool _renderingFailed;
+    private bool _renderingNotificationDismissed;
+    private string? _openError;
+    private CancellationTokenSource? _openErrorCancellation;
     private bool _lastWasRaw;
     private string? _lastHighlightedSource;
     private int _positionLine = 1;
@@ -554,7 +578,14 @@
 
         var copied = await _interop.CopyTextAsync(_documentSource);
         var lines = _documentSource.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n').Length;
-        State.Message = copied ? $"{lines} lines yanked into \"+" : "Clipboard unavailable";
+        if (copied)
+        {
+            State.Message = $"{lines} lines yanked into \"+";
+        }
+        else
+        {
+            State.ShowError("clipboard: No provider. Try \":h clipboard\".");
+        }
     }
 
     private async Task LoadReadmeAsync(PortfolioEntry entry)
@@ -569,6 +600,7 @@
         _loadCancellation = cancellation;
         _loading = true;
         _renderingFailed = false;
+        _renderingNotificationDismissed = false;
         _loadError = null;
         _documentSource = null;
         _renderedDocument = string.Empty;
@@ -603,7 +635,7 @@
                         _renderingFailed = true;
                         State.IsRawView = true;
                         _rawLines = ReadmeText.SplitRawLines(source);
-                        State.Message = $"Markdown rendering failed; showing raw text. {exception.Message}";
+                        State.ShowError($"Markdown rendering failed; showing raw text. {exception.Message}");
                     }
                 }
             }
@@ -658,6 +690,24 @@
     private void OpenHelp() => State.IsHelpOpen = true;
     private void CloseHelp() => State.IsHelpOpen = false;
 
+    private bool ShowCommandMessage => !State.IsCommandMode && !string.IsNullOrEmpty(State.Message);
+
+    private void BeginCommandFromInput()
+    {
+        if (!State.IsCommandMode)
+        {
+            State.BeginCommand();
+        }
+    }
+
+    private void EndCommandFromInput()
+    {
+        if (State.IsCommandMode)
+        {
+            State.EndCommand();
+        }
+    }
+
     private async Task HandleCommandKey(KeyboardEventArgs args)
     {
         if (args.Key == "Escape")
@@ -677,6 +727,11 @@
 
         await InvokeAsync(StateHasChanged);
         await (_interop?.ApplyLeaderAsync(State.Leader) ?? ValueTask.CompletedTask);
+        if (action != CommandAction.OpenHelp)
+        {
+            await (_interop?.FocusPreviewAsync() ?? ValueTask.CompletedTask);
+        }
+
         if (action == CommandAction.Reload)
         {
             await RetryReadme();
@@ -720,8 +775,7 @@
             case KeyAction.FollowLink or KeyAction.OpenLink:
                 if (!await (_interop?.FollowLinkAsync(action == KeyAction.OpenLink) ?? ValueTask.FromResult(false)))
                 {
-                    State.Message = "No link under cursor";
-                    await InvokeAsync(StateHasChanged);
+                    await ShowOpenErrorAsync("No URL found under cursor");
                 }
                 return true;
             case KeyAction.JumpBack:
@@ -852,13 +906,46 @@
     public Task OnMissingAnchor(string anchor) =>
         InvokeAsync(() =>
         {
-            State.Message = $"Heading not found: #{anchor}";
+            State.ShowError($"E486: Pattern not found: {anchor}");
             StateHasChanged();
         });
+
+    private async Task ShowOpenErrorAsync(string message)
+    {
+        _openErrorCancellation?.Cancel();
+        _openErrorCancellation?.Dispose();
+        _openErrorCancellation = new CancellationTokenSource();
+        _openError = message;
+        _ = HideOpenErrorLaterAsync(_openErrorCancellation.Token);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HideOpenErrorLaterAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        _openError = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void DismissOpenError()
+    {
+        _openErrorCancellation?.Cancel();
+        _openError = null;
+    }
 
     public async ValueTask DisposeAsync()
     {
         CancelReadmeLoad();
+        _openErrorCancellation?.Cancel();
+        _openErrorCancellation?.Dispose();
         if (_interop is not null)
         {
             await _interop.DisposeAsync();

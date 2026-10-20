@@ -6,6 +6,7 @@ internal sealed class NavigationState
 {
     private readonly HashSet<string> _expandedFolders = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<ExplorerItem>? _entries;
+    private string? _message;
 
     public bool IsWelcome { get; private set; } = true;
     public PortfolioEntry CurrentFolder { get; private set; } = PortfolioCatalog.RootEntry;
@@ -37,16 +38,37 @@ internal sealed class NavigationState
     public bool IsHelpOpen { get; set; }
     public bool IsCommandMode { get; set; }
     public string CommandText { get; set; } = string.Empty;
-    public string? Message { get; set; }
+
+    /// <summary>Message shown in the command line; assigning it shows an informational message.</summary>
+    public string? Message
+    {
+        get => _message;
+        set
+        {
+            _message = value;
+            IsErrorMessage = false;
+        }
+    }
+
+    public bool IsErrorMessage { get; private set; }
     public PortfolioEntry? CurrentDocument { get; private set; }
+
+    /// <summary>Shows an error message in the command line, highlighted like Neovim's ErrorMsg.</summary>
+    /// <param name="message">The error to display.</param>
+    public void ShowError(string message)
+    {
+        Message = message;
+        IsErrorMessage = true;
+    }
 
     public ExplorerItem SelectedEntry => Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
 
-    /// <summary>Enters command mode with the command prefix ready for input.</summary>
+    /// <summary>Enters command mode with the command prefix ready for input, replacing any message.</summary>
     public void BeginCommand()
     {
         IsCommandMode = true;
         CommandText = ":";
+        Message = null;
     }
 
     /// <summary>Leaves command mode and clears the command input.</summary>

@@ -184,12 +184,12 @@ internal sealed class NavigationStateTests
     }
 
     [Test]
-    public void BeginCommandExistingInputReplacesInputWithoutChangingDocumentOrMessage()
+    public void BeginCommandExistingInputReplacesInputAndMessageWithoutChangingDocument()
     {
         var state = new NavigationState();
         var document = state.NavigateTo("memo.wz");
         state.CommandText = "old input";
-        state.Message = "Old message";
+        state.ShowError("Old message");
 
         state.BeginCommand();
 
@@ -198,7 +198,25 @@ internal sealed class NavigationStateTests
             Assert.That(state.IsCommandMode, Is.True);
             Assert.That(state.CommandText, Is.EqualTo(":"));
             Assert.That(state.CurrentDocument, Is.SameAs(document));
-            Assert.That(state.Message, Is.EqualTo("Old message"));
+            Assert.That(state.Message, Is.Null);
+            Assert.That(state.IsErrorMessage, Is.False);
+        }
+    }
+
+    [Test]
+    public void ShowErrorMarksMessageAsErrorUntilAnInformationalMessageReplacesIt()
+    {
+        var state = new NavigationState();
+
+        state.ShowError("E492: Not an editor command: foo");
+        var errorShown = state.IsErrorMessage;
+        state.Message = "Keymaps on.";
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(errorShown, Is.True);
+            Assert.That(state.Message, Is.EqualTo("Keymaps on."));
+            Assert.That(state.IsErrorMessage, Is.False);
         }
     }
 

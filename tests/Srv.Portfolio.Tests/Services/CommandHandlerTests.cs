@@ -73,7 +73,7 @@ internal sealed class CommandHandlerTests
         {
             Assert.That(result, Is.EqualTo(CommandAction.Invalid));
             Assert.That(state.Leader, Is.EqualTo(","));
-            Assert.That(state.Message, Does.Contain("one printable key"));
+            Assert.That(state.Message, Is.EqualTo("E474: Invalid argument: mapleader must be a single key"));
         }
     }
 
@@ -88,7 +88,7 @@ internal sealed class CommandHandlerTests
         {
             Assert.That(result, Is.EqualTo(CommandAction.Invalid));
             Assert.That(state.Leader, Is.EqualTo(" "));
-            Assert.That(state.Message, Does.StartWith("Not an available command"));
+            Assert.That(state.Message, Does.StartWith("E492: Not an editor command"));
         }
     }
 
@@ -113,6 +113,8 @@ internal sealed class CommandHandlerTests
 
     [TestCase(":help")]
     [TestCase(":h")]
+    [TestCase(":h clipboard")]
+    [TestCase(":help clipboard")]
     public void HandleHelpCommandsOpenHelp(string command)
     {
         var state = new NavigationState { CommandText = command, IsCommandMode = true };
@@ -204,7 +206,7 @@ internal sealed class CommandHandlerTests
     }
 
     [Test]
-    public void HandleUnknownCommandShowsHelpfulMessage()
+    public void HandleUnknownCommandShowsNeovimError()
     {
         var state = new NavigationState { CommandText = ":foo", IsCommandMode = true };
 
@@ -213,10 +215,8 @@ internal sealed class CommandHandlerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result, Is.EqualTo(CommandAction.Invalid));
-            Assert.That(
-                state.Message,
-                Is.EqualTo("Not an available command: foo. Try :Ex or :help.")
-            );
+            Assert.That(state.Message, Is.EqualTo("E492: Not an editor command: foo"));
+            Assert.That(state.IsErrorMessage, Is.True);
             Assert.That(state.IsCommandMode, Is.False);
         }
     }
