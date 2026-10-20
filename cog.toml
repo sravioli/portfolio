@@ -1,0 +1,42 @@
+# General release behavior
+from_latest_tag = false
+ignore_merge_commits = true
+ignore_fixup_commits = true
+disable_changelog = false
+disable_bump_commit = false
+generate_mono_repository_global_tag = false
+generate_mono_repository_package_tags = false
+branch_whitelist = []
+pre = "alpha.*"
+skip_ci = "[skip ci]"
+skip_untracked = false
+
+# Keep release hooks empty so bumps do not run unconfigured commands.
+pre_bump_hooks = []
+post_bump_hooks = []
+pre_package_bump_hooks = []
+post_package_bump_hooks = []
+
+[git_hooks]
+
+[commit_types]
+chore = { changelog_title = "Misc", omit_from_changelog = true }
+
+[changelog]
+# Type: `string: "CHANGELOG.md"` (optional)
+# Path to the repository markdown changelog.
+path = "CHANGELOG.md"
+
+# Type: `string: "default"` (optional)
+# Built-in templates: `default`, `remote`, `full_hash`.
+template = "remote"
+
+# Required by the remote template for changelog links.
+remote = "github.com"
+repository = "sravio.li"
+owner = "sravioli"
+
+# Link changelog entries to the matching GitHub user.
+authors = [{ signature = "Simone Fidanza", username = "sravioli" }]
+
+[bump_profiles]
