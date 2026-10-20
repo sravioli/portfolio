@@ -113,10 +113,10 @@ function pushMenu(items, left, top) {
         arrow.textContent = item.hasChildren ? "\u{f0142}" : "";
         row.append(icon, text, arrow);
         row.addEventListener("mouseenter", () => select(menu, index));
-        row.addEventListener("click", event => {
+        row.addEventListener("click", async event => {
             event.stopPropagation();
             select(menu, index);
-            activate(false);
+            await activate(true);
         });
         element.append(row);
     });
