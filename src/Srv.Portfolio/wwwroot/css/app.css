@@ -978,7 +978,7 @@ a {
   border-radius: 999px;
   background: #ffa066;
   color: var(--surface);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 16px;
   text-overflow: ellipsis;
@@ -1090,7 +1090,7 @@ a {
 .status-right {
   gap: 10px;
   padding-right: 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .byte-size {
@@ -1103,11 +1103,14 @@ a {
 
 .position-block {
   position: relative;
+  display: flex;
+  align-items: center;
   height: 20px;
   padding: 0 8px 0 14px;
   background: var(--blue);
   color: var(--surface);
   font-weight: 600;
+  white-space: pre;
 }
 
 .position-block::before {
@@ -1150,7 +1153,7 @@ a {
 .explorer-status {
   flex-basis: 20px;
   height: 20px;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 20px;
 }
 
@@ -1276,6 +1279,7 @@ a {
 .reading-status .position-block {
   margin-left: 8px;
   padding-left: 6px;
+  box-shadow: -8px 0 0 var(--raised);
   font-weight: 400;
 }
 
