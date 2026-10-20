@@ -672,6 +672,60 @@ a {
   color: var(--text);
 }
 
+.code-block {
+  position: relative;
+}
+
+.code-wrap-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 120ms ease-out, color 120ms ease-out;
+}
+
+.code-wrap-toggle::before {
+  content: "\f05b6";
+  font-size: 15px;
+  line-height: 1;
+}
+
+.code-block:hover .code-wrap-toggle,
+.code-wrap-toggle:focus-visible {
+  opacity: 1;
+}
+
+.code-wrap-toggle:hover,
+.code-wrap-toggle[aria-pressed="true"] {
+  color: var(--blue);
+}
+
+.code-wrap-toggle:focus-visible {
+  outline: 1px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* Keep the first line from running under the button. */
+.code-block pre {
+  padding-right: 44px;
+}
+
+:root[data-code-wrap] .readme-content pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .readme-content blockquote {
   margin-left: 0;
   padding-left: 16px;
@@ -1284,6 +1338,16 @@ kbd {
 }
 
 @media (pointer: coarse) {
+  .code-wrap-toggle {
+    width: 36px;
+    height: 36px;
+    opacity: 1;
+  }
+
+  .code-block pre {
+    padding-right: 52px;
+  }
+
   .entry {
     min-height: 44px;
   }

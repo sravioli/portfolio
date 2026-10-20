@@ -29,6 +29,7 @@ internal static partial class MarkdownProcessor
         EmbedAttachmentVideos(document);
         AddHeadingIdsAndResolveAnchors(document);
         MarkInternalRepositoryLinks(document);
+        AddCodeWrapToggles(document);
         foreach (var image in document.QuerySelectorAll("img"))
         {
             image.SetAttribute("loading", "lazy");
@@ -117,6 +118,25 @@ internal static partial class MarkdownProcessor
             paragraph.InsertBefore(video, anchor);
             paragraph.InsertBefore(document.CreateElement("br"), anchor);
             anchor.TextContent = "Open video on GitHub";
+        }
+    }
+
+    // Added after sanitizing; the button has no text so the reading cursor never lands on it.
+    private static void AddCodeWrapToggles(IDocument document)
+    {
+        foreach (var pre in document.QuerySelectorAll("pre"))
+        {
+            var container = document.CreateElement("div");
+            container.ClassName = "code-block";
+            var toggle = document.CreateElement("button");
+            toggle.SetAttribute("type", "button");
+            toggle.ClassName = "code-wrap-toggle";
+            toggle.SetAttribute("aria-label", "Wrap long lines");
+            toggle.SetAttribute("aria-pressed", "false");
+            toggle.SetAttribute("title", "Toggle line wrap");
+            pre.Parent!.ReplaceChild(container, pre);
+            container.AppendChild(toggle);
+            container.AppendChild(pre);
         }
     }
 

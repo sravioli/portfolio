@@ -24,6 +24,20 @@ internal sealed class MarkdownProcessorTests
     }
 
     [Test]
+    public void Render_CodeBlock_AddsTextlessWrapToggle()
+    {
+        var html = MarkdownProcessor.Render("```lua\nlocal x = 1\n```", PortfolioCatalog.RootEntry);
+
+        Assert.That(
+            html,
+            Does.StartWith(
+                "<div class=\"code-block\"><button type=\"button\" class=\"code-wrap-toggle\""
+            )
+                .And.Contain("title=\"Toggle line wrap\"></button><pre>")
+        );
+    }
+
+    [Test]
     public void Render_ReusedSanitizer_DoesNotRetainPreviousDocumentState()
     {
         MarkdownProcessor.Render("## Same\n\n## Same", PortfolioCatalog.RootEntry);

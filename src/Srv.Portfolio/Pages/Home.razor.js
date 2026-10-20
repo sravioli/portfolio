@@ -468,6 +468,11 @@ async function onClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (whichKey.isOpen()) resetLeader();
   if (pick.isActive()) pick.cancel();
+  if (target?.closest(".code-wrap-toggle")) {
+    event.preventDefault();
+    toggleCodeWrap();
+    return;
+  }
   const crumb = target?.closest(".breadcrumb [data-pick-segment]");
   if (crumb) {
     event.preventDefault();
@@ -587,6 +592,7 @@ export function initialize(reference, enabled, configuredLeader) {
   });
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("click", onClick);
+  applyCodeWrap(readCodeWrap());
   document.addEventListener("error", onImageError, true);
   document
     .querySelector(".preview-scroll")
@@ -601,6 +607,39 @@ function onContentLoad(event) {
     event.target.closest(".readme-content")
   )
     schedulePosition();
+}
+
+const CODE_WRAP_KEY = "portfolio.codeWrap";
+let codeWrap = false;
+
+function readCodeWrap() {
+  try {
+    return localStorage.getItem(CODE_WRAP_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+
+function applyCodeWrap(wrap) {
+  codeWrap = wrap;
+  document.documentElement?.toggleAttribute("data-code-wrap", wrap);
+  for (const toggle of document.documentElement?.querySelectorAll(
+    ".code-wrap-toggle",
+  ) ?? [])
+    toggle.setAttribute("aria-pressed", String(wrap));
+}
+
+function toggleCodeWrap() {
+  const wrap = !codeWrap;
+  applyCodeWrap(wrap);
+  try {
+    localStorage.setItem(CODE_WRAP_KEY, wrap ? "on" : "off");
+  } catch {
+    // Storage can be unavailable (private mode); the choice still applies to this visit.
+  }
+  cursor.refresh();
+  schedulePosition();
+  focusPreview();
 }
 
 export function setKeyboardEnabled(enabled) {
@@ -625,6 +664,7 @@ export async function refreshPreview() {
   headingRoot = null;
   headingIndex = null;
   const blocks = [...document.querySelectorAll(".readme-content pre code")];
+  applyCodeWrap(codeWrap);
   if (
     blocks.some((block) =>
       [...block.classList].some((name) => name.startsWith("language-")),
