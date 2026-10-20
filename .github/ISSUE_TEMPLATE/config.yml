@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability report
-    url: https://github.com/sravioli/portfolio/security/advisories/new
-    about: Report security issues privately through GitHub Security Advisories.
+    url: mailto:s.fidanza@pm.me
+    about: Report security issues privately by email.

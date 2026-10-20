@@ -44,4 +44,4 @@ Use the bug report issue template and include:
 
 ## Security issues
 
-Do not open public issues for vulnerabilities. Follow `SECURITY.md`.
+Do not open public issues for vulnerabilities. Follow the [security policy](SECURITY.md).
