@@ -123,8 +123,37 @@
     </div>
 
     <div class="message-line" aria-live="polite" aria-atomic="true">@State.Message</div>
-    <footer class="statusline @(State.IsReading ? "reading-status" : "explorer-status") @(State.IsCommandMode ? "command-status" : "")">
-        @if (State.IsReading)
+    <footer class="statusline @((State.IsReading || State.IsCommandMode) && !_fileFinderOpen ? "reading-status" : "explorer-status") @(_fileFinderOpen ? "insert-status" : State.IsCommandMode ? "command-status" : "")">
+        @if (_fileFinderOpen)
+        {
+            <div class="status-left">
+                <span class="mode-block">INSERT</span>
+                <span class="power-arrow blue-arrow" aria-hidden="true"></span>
+                <span class="telescope-segment"><span aria-hidden="true">&#xf46b;</span> telescope</span>
+            </div>
+            <div class="status-right">
+                <span class="tree-count"><span aria-hidden="true">&#xf4a5;</span> 0b</span>
+                <span class="position-block">001/001:01 All <span class="scroll-thumb" aria-hidden="true" style="@ScrollThumbStyle(_explorerScroll)"></span></span>
+            </div>
+        }
+        else if (State.IsCommandMode && !State.IsReading)
+        {
+            <div class="status-left">
+                <span class="mode-block"><span class="status-full">COMMAND</span><span class="status-short" aria-hidden="true">C</span></span>
+                <span class="power-arrow blue-arrow" aria-hidden="true"></span>
+                <span class="cwd-segment"><span aria-hidden="true">&#xf024b;</span><i class="cwd-path cwd-full"><span class="cwd-head">@FullPath.Head</span><span class="cwd-tail">@FullPath.Tail</span></i><i class="cwd-path cwd-short" aria-hidden="true"><span class="cwd-head">@ShortPath.Head</span><span class="cwd-tail">@ShortPath.Tail</span></i></span>
+                <span class="power-arrow surface-arrow" aria-hidden="true"></span>
+                <span class="file-segment"><span aria-hidden="true">&#xf4a5;</span> [No Name]</span>
+                <span class="power-arrow file-arrow" aria-hidden="true"></span>
+            </div>
+            <div class="status-right">
+                <span class="byte-size">0b <span aria-hidden="true">&#xf0214;</span></span>
+                <span class="encoding">utf-8</span>
+                <span class="file-format" title="Unix line endings" aria-label="Unix line endings">&#xe712;</span>
+                <span class="position-block">000/001:00 All</span>
+            </div>
+        }
+        else if (State.IsReading)
         {
             <div class="status-left">
                 <span class="mode-block"><span class="status-full">@(State.IsCommandMode ? "COMMAND" : "NORMAL")</span><span class="status-short" aria-hidden="true">@(State.IsCommandMode ? "C" : "N")</span></span>

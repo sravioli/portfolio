@@ -1043,6 +1043,27 @@ a {
   background: var(--gold);
 }
 
+.insert-status .mode-block {
+  height: 16px;
+  padding: 0 8px;
+}
+
+.telescope-segment {
+  padding: 0 9px;
+  color: var(--text);
+}
+
+.telescope-segment span {
+  color: var(--blue);
+}
+
+.insert-status .mode-block,
+.insert-status .blue-arrow,
+.insert-status .position-block,
+.insert-status .position-block::before {
+  background: var(--green);
+}
+
 .reading-status .cwd-segment,
 .reading-status .file-segment {
   overflow: hidden;
