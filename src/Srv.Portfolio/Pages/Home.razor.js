@@ -1,0 +1,531 @@
+import * as cursor from "../js/nvim-cursor.js";
+import * as pick from "../js/pick-menu.js";
+import * as viewer from "../js/image-viewer.js";
+import * as whichKey from "../js/which-key.js";
+import { createMotionParser, isModifierKey } from "../js/vim-motions.js";
+
+const ON_KEY_DOWN = "OnKeyDown";
+const ON_POSITION = "OnPreviewPosition";
+const ON_INTERNAL_REPOSITORY = "OnInternalRepositoryLink";
+const ON_MISSING_ANCHOR = "OnMissingAnchor";
+
+const LEADER_MAPS = whichKey.leaderMaps();
+const CTRL_MAPS = ["d", "u", "h", "l", "p", "c", "o", "i"];
+
+let dotNetRef;
+let positionFrame = 0;
+let keyboardEnabled = true;
+let leader = " ";
+let leaderPressedAt = 0;
+let leaderSuffix = "";
+let pendingBracket = "";
+let bracketPressedAt = 0;
+let whichKeyTimer = 0;
+const motions = createMotionParser();
+
+function resetLeader() {
+    leaderPressedAt = 0;
+    leaderSuffix = "";
+    clearTimeout(whichKeyTimer);
+    whichKeyTimer = 0;
+    whichKey.hide();
+}
+
+// The sequence never times out while the which-key popup is showing, like Neovim.
+function leaderPending() {
+    return leaderPressedAt !== 0 && (whichKey.isOpen() || performance.now() - leaderPressedAt < 1000);
+}
+
+function scheduleWhichKey() {
+    clearTimeout(whichKeyTimer);
+    whichKeyTimer = 0;
+    if (whichKey.isOpen()) showWhichKey();
+    else whichKeyTimer = setTimeout(showWhichKey, whichKey.DELAY);
+}
+
+function showWhichKey() {
+    whichKeyTimer = 0;
+    const items = leaderPressedAt ? whichKey.entries(leaderSuffix) : null;
+    if (!items) return;
+    whichKey.show(`<leader>${leaderSuffix}`, items, {
+        onSelect: key => void runLeaderKey(key),
+        onBack: leaderBack,
+        onClose: resetLeader
+    });
+}
+
+function leaderBack() {
+    if (!leaderSuffix) {
+        resetLeader();
+        return;
+    }
+    leaderSuffix = leaderSuffix.slice(0, -1);
+    leaderPressedAt = performance.now();
+    scheduleWhichKey();
+}
+
+// Returns the `<leader>…` key once a map completes, "" while a prefix is pending, or null when consumed.
+function continueLeader(key) {
+    const sequence = leaderSuffix + key;
+    if (LEADER_MAPS.includes(sequence)) {
+        resetLeader();
+        if (sequence === ";") {
+            pick.start();
+            return null;
+        }
+        return `<leader>${sequence}`;
+    }
+    if (LEADER_MAPS.some(map => map.startsWith(sequence))) {
+        leaderSuffix = sequence;
+        leaderPressedAt = performance.now();
+        scheduleWhichKey();
+        return "";
+    }
+    resetLeader();
+    return null;
+}
+
+async function runLeaderKey(key) {
+    const mapped = continueLeader(key);
+    if (mapped) await invokeKey(mapped, false);
+}
+
+function resetBracket() {
+    pendingBracket = "";
+    bracketPressedAt = 0;
+    motions.reset();
+}
+
+export function setHelpOpen(dialog, open) {
+    if (open && !dialog.open) dialog.showModal();
+    else if (!open && dialog.open) dialog.close();
+}
+
+function isTextEntry(target) {
+    return target instanceof HTMLElement &&
+        (target.closest("input, textarea, select, [contenteditable='true']") !== null);
+}
+
+let helpPendingG = 0;
+
+function scrollHelp(dialog, event, ctrlOnly) {
+    const key = ctrlOnly ? `<C-${event.key.toLowerCase()}>` : event.key;
+    const step = { j: 1, ArrowDown: 1, k: -1, ArrowUp: -1 }[key];
+    const page = { "<C-d>": 1, "<C-u>": -1 }[key];
+    if (key !== "g") helpPendingG = 0;
+    if (step) dialog.scrollBy({ top: step * 48, behavior: "instant" });
+    else if (page) dialog.scrollBy({ top: page * dialog.clientHeight / 2, behavior: "instant" });
+    else if (key === "G") dialog.scrollTo({ top: dialog.scrollHeight, behavior: "instant" });
+    else if (key === "g") {
+        if (helpPendingG && performance.now() - helpPendingG < 1000) {
+            helpPendingG = 0;
+            dialog.scrollTo({ top: 0, behavior: "instant" });
+        } else {
+            helpPendingG = performance.now();
+        }
+    } else {
+        return false;
+    }
+    return true;
+}
+
+async function onKeyDown(event) {
+    if (isModifierKey(event.key)) return;
+    const ctrlOnly = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+    if ((event.ctrlKey && !ctrlOnly) || event.metaKey || event.altKey || event.isComposing) {
+        resetLeader();
+        resetBracket();
+        return;
+    }
+    if (viewer.isOpen()) {
+        event.preventDefault();
+        resetLeader();
+        resetBracket();
+        viewer.handleKey(event.key);
+        return;
+    }
+    if (pick.isActive()) {
+        event.preventDefault();
+        resetLeader();
+        resetBracket();
+        await pick.handleKey(ctrlOnly ? `<C-${event.key.toLowerCase()}>` : event.key);
+        return;
+    }
+    const helpDialog = document.querySelector("dialog[open]");
+    const helpOpen = helpDialog !== null;
+    if (helpOpen && keyboardEnabled) {
+        resetLeader();
+        resetBracket();
+        if (scrollHelp(helpDialog, event, ctrlOnly)) {
+            event.preventDefault();
+            return;
+        }
+        if (event.key === "q" && !ctrlOnly) {
+            event.preventDefault();
+            await invokeKey("Escape", false);
+            return;
+        }
+    }
+    if ((helpOpen && event.key !== "Escape") || isTextEntry(event.target) ||
+        (event.target instanceof Element && event.target.closest(".file-finder"))) {
+        resetLeader();
+        resetBracket();
+        return;
+    }
+    if (!keyboardEnabled) {
+        resetLeader();
+        resetBracket();
+        // `:` stays available so `:set keys` can turn the keymaps back on.
+        if (event.key === ":" && !ctrlOnly) {
+            event.preventDefault();
+            await invokeKey(":", false);
+        }
+        return;
+    }
+    const reading = document.querySelector(".portfolio-shell")?.dataset.reading === "true";
+    let key = event.key;
+    const target = event.target instanceof Element ? event.target : null;
+    const entryButton = target?.closest(".entry");
+    const motionsActive = reading && !entryButton && !helpOpen;
+    if (ctrlOnly) {
+        resetLeader();
+        resetBracket();
+        const letter = key.toLowerCase();
+        if (!CTRL_MAPS.includes(letter)) return;
+        if (letter === "c" && (!reading || window.getSelection?.()?.toString())) return;
+        if (letter !== "h" && letter !== "p" && !reading) return;
+        key = `<C-${letter}>`;
+    } else if (motionsActive && motions.awaitsArgument()) {
+        // f/t/m/' take any character, including the leader key, as their argument.
+        event.preventDefault();
+        resetLeader();
+        await runMotion(motions.feed(key));
+        return;
+    } else if (!helpOpen && leaderPending()) {
+        event.preventDefault();
+        if (key === "Escape") {
+            resetLeader();
+            return;
+        }
+        if (key === "Backspace") {
+            leaderBack();
+            return;
+        }
+        const mapped = continueLeader(key);
+        if (!mapped) return;
+        key = mapped;
+    } else {
+        resetLeader();
+        if (!helpOpen && key === leader) {
+            event.preventDefault();
+            resetBracket();
+            if (!event.repeat) {
+                leaderPressedAt = performance.now();
+                scheduleWhichKey();
+            }
+            return;
+        }
+        if (motionsActive) {
+            const result = motions.feed(key);
+            if (result.status !== "none") {
+                event.preventDefault();
+                await runMotion(result);
+                return;
+            }
+        } else if (reading && (key === "]" || key === "[")) {
+            event.preventDefault();
+            if (pendingBracket === key && performance.now() - bracketPressedAt < 1000) {
+                resetBracket();
+                key = key + key;
+            } else {
+                pendingBracket = key;
+                bracketPressedAt = performance.now();
+                return;
+            }
+        } else {
+            resetBracket();
+        }
+    }
+    if (!entryButton && target?.closest("button, a") && ["Enter", " ", "Spacebar"].includes(event.key)) return;
+
+    const welcome = document.querySelector(".preview-scroll")?.dataset.welcome === "true";
+    const handled = key === "Escape" ? helpOpen
+        : key.startsWith("<") || key === "]]" || key === "[["
+            || ["j", "k", "ArrowDown", "ArrowUp", "Enter", "l", "h", "-", "g", "G", ":", "?"].includes(key)
+            || (reading && key === "p")
+            || (welcome && key === "x");
+    if (!handled) return;
+    event.preventDefault();
+    await invokeKey(key, !!entryButton);
+}
+
+async function runMotion(result) {
+    if (result.status !== "motion") return;
+    if (result.motion === "followLink") {
+        await invokeKey("gx", false);
+        return;
+    }
+    cursor.motion(result.motion, result.count, { hasCount: result.hasCount, argument: result.argument });
+}
+
+async function invokeKey(key, explorerFocused) {
+    try {
+        await dotNetRef.invokeMethodAsync(ON_KEY_DOWN, key, explorerFocused);
+    } catch {
+        // The component can be disposed while a key callback is in flight.
+    }
+}
+
+async function reportPosition() {
+    const viewport = document.querySelector(".preview-scroll");
+    if (!viewport || !dotNetRef) return;
+
+    const raw = viewport.querySelector(".raw-readme");
+    const article = viewport.querySelector(".readme-content");
+    const total = raw
+        ? raw.querySelectorAll(".raw-line").length
+        : Number(article?.dataset.totalLines || 1);
+    const lineHeight = Number.parseFloat(getComputedStyle(raw || article || viewport).lineHeight) || 24;
+    const cursorPosition = cursor.position();
+    const line = Math.min(total, Math.max(1, cursorPosition?.line ?? Math.floor(viewport.scrollTop / lineHeight) + 1));
+    const column = cursorPosition?.column ?? 1;
+    const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const percent = maxScroll === 0 ? "All"
+        : viewport.scrollTop <= 1 ? "Top"
+            : viewport.scrollTop >= maxScroll - 1 ? "Bot"
+                : `${Math.round(viewport.scrollTop / maxScroll * 100)}%`;
+    const headings = article ? getActiveHeadings(
+        [...article.querySelectorAll("h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]")].map(heading => ({
+            id: heading.id,
+            title: heading.textContent.trim(),
+            level: Number(heading.tagName.slice(1)),
+            top: heading.getBoundingClientRect().top
+        })),
+        (cursorPosition?.top ?? viewport.getBoundingClientRect().top + 32) + 1) : [];
+
+    try {
+        await dotNetRef.invokeMethodAsync(ON_POSITION, line, column, total, percent, headings, article?.dataset.repository ?? null);
+    } catch {
+        // The component can be disposed while a scroll callback is in flight.
+    }
+}
+
+export function getActiveHeadings(headings, top) {
+    const path = [];
+    for (const heading of headings) {
+        if (heading.top > top) break;
+        while (path.length && path[path.length - 1].level >= heading.level) path.pop();
+        path.push({ id: heading.id, title: heading.title, level: heading.level });
+    }
+    return path;
+}
+
+function schedulePosition() {
+    if (positionFrame) return;
+    positionFrame = requestAnimationFrame(async () => {
+        positionFrame = 0;
+        cursor.sync();
+        await reportPosition();
+    });
+}
+
+async function onClick(event) {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (whichKey.isOpen()) resetLeader();
+    if (pick.isActive()) pick.cancel();
+    const crumb = target?.closest(".breadcrumb [data-pick-segment]:not([data-readme-heading])");
+    if (crumb) {
+        event.preventDefault();
+        await pick.openSegment(crumb);
+        return;
+    }
+    if (target && event.detail > 0) cursor.placeAt(event.clientX, event.clientY, target);
+    const headingLink = target?.closest("a[data-readme-heading]");
+    const anchorLink = headingLink ? null : target?.closest(".readme-content a[href^='#']");
+    if (headingLink || anchorLink) {
+        event.preventDefault();
+        const id = headingLink ? headingLink.dataset.readmeHeading : decodeURIComponent(anchorLink.getAttribute("href").slice(1));
+        cursor.jumpToElement(document.getElementById(id));
+        document.querySelector(".preview-scroll")?.focus({ preventScroll: true });
+        return;
+    }
+    const missingAnchor = target?.closest("a[data-missing-anchor]");
+    if (missingAnchor) {
+        event.preventDefault();
+        try {
+            await dotNetRef.invokeMethodAsync(ON_MISSING_ANCHOR, missingAnchor.dataset.missingAnchor);
+        } catch {
+            // The component can be disposed while a click callback is in flight.
+        }
+        return;
+    }
+
+    const repositoryLink = target?.closest("a[data-internal-repo]");
+    if (!repositoryLink) {
+        openExternal(event, target);
+        return;
+    }
+    event.preventDefault();
+    try {
+        await dotNetRef.invokeMethodAsync(ON_INTERNAL_REPOSITORY, repositoryLink.dataset.internalRepo);
+    } catch {
+        // The component can be disposed while a click callback is in flight.
+    }
+}
+
+// Links leaving the portfolio always open in a new tab so the reading position is kept.
+function openExternal(event, target) {
+    const link = target?.closest("a[href]");
+    if (!link || event.defaultPrevented) return;
+    let url;
+    try {
+        url = new URL(link.href, location.href);
+    } catch {
+        return;
+    }
+    if (url.origin === location.origin || !/^https?:$/.test(url.protocol)) return;
+    event.preventDefault();
+    window.open(url.href, "_blank", "noopener,noreferrer");
+}
+
+function onImageError(event) {
+    const image = event.target;
+    if (!(image instanceof HTMLImageElement) || !image.closest(".readme-content")) return;
+    image.replaceWith(document.createTextNode(`[Image unavailable: ${image.alt}]`));
+    cursor.invalidate();
+}
+
+export function initialize(reference, enabled, configuredLeader) {
+    dotNetRef = reference;
+    keyboardEnabled = enabled;
+    leader = configuredLeader;
+    resetLeader();
+    resetBracket();
+    cursor.setNavigator(async repository => {
+        try {
+            await dotNetRef?.invokeMethodAsync(ON_INTERNAL_REPOSITORY, repository);
+        } catch {
+            // The component can be disposed while a jump is in flight.
+        }
+    });
+    cursor.setMoveListener(schedulePosition);
+    pick.configure({
+        loadMenu: async repository => {
+            try {
+                return await dotNetRef?.invokeMethodAsync("GetPickMenu", repository);
+            } catch {
+                return [];
+            }
+        },
+        open: async repository => {
+            try {
+                await dotNetRef?.invokeMethodAsync(ON_INTERNAL_REPOSITORY, repository);
+            } catch {
+                // The component can be disposed while a pick is in flight.
+            }
+            focusPreview();
+        },
+        jump: id => {
+            cursor.jumpToElement(document.getElementById(id));
+            focusPreview();
+        }
+    });
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("click", onClick);
+    document.addEventListener("error", onImageError, true);
+    document.querySelector(".preview-scroll")?.addEventListener("scroll", schedulePosition, { passive: true });
+    window.addEventListener("resize", schedulePosition);
+    document.addEventListener("load", onContentLoad, true);
+}
+
+function onContentLoad(event) {
+    if (event.target instanceof HTMLImageElement && event.target.closest(".readme-content")) schedulePosition();
+}
+
+export function setKeyboardEnabled(enabled) {
+    keyboardEnabled = enabled;
+    resetLeader();
+}
+
+export function applyLeader(configuredLeader) {
+    leader = configuredLeader;
+    resetLeader();
+    focusPreview();
+}
+
+export function focusExplorer(explorer) {
+    resetLeader();
+    const entry = explorer.querySelector(".entry.selected");
+    entry?.focus({ preventScroll: true });
+    entry?.scrollIntoView({ block: "nearest" });
+}
+
+export function refreshPreview() {
+    if (window.hljs) {
+        for (const block of document.querySelectorAll(".readme-content pre code")) {
+            const language = [...block.classList]
+                .find(name => name.startsWith("language-"))
+                ?.slice("language-".length);
+            if (language && window.hljs.getLanguage(language)) window.hljs.highlightElement(block);
+        }
+    }
+    cursor.refresh();
+    schedulePosition();
+}
+
+export function moveCursor(motion) {
+    cursor.move(motion);
+}
+
+export function jumpHeading(direction) {
+    cursor.jumpHeading(direction);
+}
+
+export function followLink(fallbackDown) {
+    const welcomeLink = document.querySelector(".preview-scroll[data-welcome='true'] .welcome-screen a[href]");
+    if (welcomeLink) {
+        window.open(welcomeLink.href, "_blank", "noopener,noreferrer");
+        return true;
+    }
+    if (fallbackDown && viewer.open(cursor.imageUnderCursor())) return true;
+    if (cursor.followLink()) return true;
+    if (fallbackDown) cursor.move("down");
+    return fallbackDown;
+}
+
+export function jump(direction) {
+    cursor.jump(direction);
+}
+export async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export function focusCommand() {
+    document.querySelector("#command-input")?.focus();
+}
+
+export function focusPreview() {
+    document.querySelector(".preview-scroll")?.focus();
+}
+
+export function dispose() {
+    resetLeader();
+    pick.cancel();
+    viewer.close();
+    document.removeEventListener("keydown", onKeyDown);
+    document.removeEventListener("click", onClick);
+    document.removeEventListener("error", onImageError, true);
+    document.querySelector(".preview-scroll")?.removeEventListener("scroll", schedulePosition);
+    window.removeEventListener("resize", schedulePosition);
+    document.removeEventListener("load", onContentLoad, true);
+    if (positionFrame) cancelAnimationFrame(positionFrame);
+    positionFrame = 0;
+    cursor.dispose();
+    dotNetRef = undefined;
+}

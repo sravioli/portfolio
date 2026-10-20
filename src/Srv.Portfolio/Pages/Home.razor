@@ -1,7 +1,713 @@
 ﻿@page "/"
+@implements IAsyncDisposable
+@inject ReadmeService Readmes
+@inject MarkdownProcessor Markdown
+@inject IJSRuntime JS
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Simone Fidanza — Portfolio</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="skip-link"><a href="#portfolio-main">Skip to content</a></div>
+<div class="portfolio-shell" data-reading="@State.IsReading.ToString().ToLowerInvariant()">
+    <header class="tabline">
+        <div class="explorer-label">File Explorer</div>
+        <div class="active-tab">
+            <span class="tab-icon" aria-hidden="true">&#xf48a;</span>
+            <span class="tab-title">@(State.IsReading ? (State.CurrentDocument?.IsRoot == true ? "README" : State.CurrentDocument?.Name) : "Explorer")</span>
+            <button type="button" class="tab-close" @onclick="CloseDocument" aria-label="Close document">×</button>
+        </div>
+        <div class="tab-actions">
+            <button type="button" @onclick="GoParent" aria-label="Go to parent">../</button>
+            <button type="button" @onclick="ToggleKeyboard" aria-pressed="@State.KeyboardEnabled" title="Toggle keymaps (:set keys / :set nokeys)">Keys: @(State.KeyboardEnabled ? "on" : "off")</button>
+            <button type="button" @onclick="OpenFileFinder" aria-label="Find files" title="Find files (<leader>ff)">&#xf002;</button>
+            <button type="button" @onclick="OpenHelp" aria-label="Keyboard help">?</button>
+        </div>
+    </header>
 
-Welcome to your new app.
+    <div class="workspace">
+        <aside class="explorer" aria-label="File Explorer">
+            <div class="explorer-path">~/@PortfolioCatalog.RootEntry.Name/</div>
+            <nav class="entry-list" aria-label="Project files" @ref="_explorer">
+                <ExplorerTree Entries="State.Entries" SelectedIndex="State.SelectedIndex"
+                              OnSelect="SelectEntry" OnOpen="OpenEntry" />
+            </nav>
+        </aside>
+
+        <main id="portfolio-main" class="preview-area">
+            <div class="breadcrumb" aria-label="Current location">
+                <span aria-hidden="true">&#xf024b;</span>
+                @foreach (var entry in PortfolioCatalog.GetAncestry(State.CurrentFolder))
+                {
+                    var parent = PortfolioCatalog.FindParent(entry);
+                    @if (!entry.IsRoot)
+                    {
+                        <span class="crumb-divider">›</span>
+                    }
+                    <span class="crumb" data-pick-segment data-pick-menu="@((parent ?? entry).Repository)"
+                          data-pick-current="@PortfolioCatalog.PickKey(entry)">@entry.Name</span>
+                }
+                @if (State.IsReading)
+                {
+                    <span class="crumb-divider">›</span><span aria-hidden="true">&#xf48a;</span><span class="crumb" data-pick-segment
+                        data-pick-menu="@State.CurrentFolder.Repository"
+                        data-pick-current="readme:@State.CurrentFolder.Repository">README.md</span>
+                    @if (!State.IsRawView && !_loading && _loadError is null)
+                    {
+                        <HeadingBreadcrumbs Headings="_headingBreadcrumbs" />
+                    }
+                }
+            </div>
+            <section class="preview-scroll" data-welcome="@State.IsWelcome.ToString().ToLowerInvariant()" tabindex="0">
+                @if (State.IsWelcome)
+                {
+                    <WelcomeScreen OnOpenReadme="@(() => OnInternalRepositoryLink(string.Empty))"
+                                   OnOpenSelected="OpenSelected"
+                                   LeaderLabel="@State.LeaderLabel" DevNotation="State.DevNotation" OnFindFiles="OpenFileFinder"
+                                   OnOpenHelp="OpenHelp" />
+                }
+                else if (State.IsReading && _loadError is not null)
+                {
+                    <div class="load-error" role="alert">
+                        <p>Could not load this README: @_loadError</p>
+                        <p>Type <kbd>:e</kbd> to retry.</p>
+                        <button type="button" @onclick="RetryReadme">Retry</button>
+                    </div>
+                }
+                else if (State.IsReading && _documentSource is not null)
+                {
+                    @if (State.IsRawView)
+                    {
+                        <pre class="raw-readme" data-repository="@State.CurrentDocument?.Repository">@foreach (var line in _documentSource.Replace("\r\n", "\n").Split('\n')){<span class="raw-line">@line</span>}</pre>
+                    }
+                    else
+                    {
+                        <article class="readme-content" data-repository="@State.CurrentDocument?.Repository"
+                                 data-total-lines="@(_documentSource.Count(character => character == '\n') + 1)">
+                            @((MarkupString)_renderedDocument)
+                        </article>
+                    }
+                    <div class="eob-markers" aria-hidden="true">~<br />~<br />~<br />~<br />~</div>
+                    <div class="nvim-cursor" aria-hidden="true"></div>
+                }
+                else if (!State.CurrentFolder.IsRoot && !State.CurrentFolder.HasReadme)
+                {
+                    <article class="readme-content no-readme"><p>No README published.</p></article>
+                    <div class="eob-markers" aria-hidden="true">~<br />~<br />~</div>
+                }
+                else if (_loading)
+                {
+                    <p class="loading-message" role="status">Loading README…</p>
+                }
+                else
+                {
+                    <p class="preview-hint">Select a file to open it.</p>
+                    <div class="eob-markers" aria-hidden="true">~<br />~<br />~</div>
+                }
+            </section>
+        </main>
+    </div>
+
+    <div class="message-line" aria-live="polite" aria-atomic="true">@State.Message</div>
+    <footer class="statusline @(State.IsReading ? "reading-status" : "explorer-status") @(State.IsCommandMode ? "command-status" : "")">
+        @if (State.IsReading)
+        {
+            <div class="status-left">
+                <span class="mode-block">@(State.IsCommandMode ? "COMMAND" : "NORMAL")</span>
+                <span class="power-arrow blue-arrow" aria-hidden="true"></span>
+                <span class="cwd-segment"><span aria-hidden="true">&#xf024b;</span> <i>~/@string.Join("/", PortfolioCatalog.GetPath(State.CurrentFolder))</i></span>
+                <span class="power-arrow surface-arrow" aria-hidden="true"></span>
+                <span class="file-segment"><span aria-hidden="true">&#xf48a;</span> README.md</span>
+                <span class="power-arrow file-arrow" aria-hidden="true"></span>
+                <span class="branch-segment"><span aria-hidden="true">&#xe0a0;</span> main</span>
+            </div>
+            <div class="status-right">
+                <span class="byte-size">@FormatFileSize(System.Text.Encoding.UTF8.GetByteCount(_documentSource ?? string.Empty)) <span aria-hidden="true">&#xf0214;</span></span>
+                <span class="encoding">utf-8</span>
+                <span class="file-format" title="Unix line endings" aria-label="Unix line endings">&#xe712;</span>
+                <span class="filetype">@(State.IsRawView ? "TEXT" : "MARKDOWN")</span>
+                <span class="position-block">@($"{_positionLine:000}/{_totalLines:000}:{_positionColumn:00} {_scrollPosition}") <span aria-hidden="true">@_readmeScrollGlyph</span></span>
+            </div>
+        }
+        else
+        {
+            <div class="status-left">
+                <span class="tree-mode">NVIMTREE</span>
+                <span class="power-arrow tree-arrow" aria-hidden="true"></span>
+            </div>
+            <div class="status-right">
+                <span class="tree-count"><span aria-hidden="true">&#xf4a5;</span> 0b</span>
+                <span class="position-block">@($"{State.SelectedIndex + 1:000}/{State.Entries.Count:000}:01 All {_scrollGlyph}")</span>
+            </div>
+        }
+    </footer>
+
+    <form class="command-line" @onsubmit="SubmitCommand" @onsubmit:preventDefault>
+        <label for="command-input" class="visually-hidden">Command</label>
+        <input id="command-input" @bind="State.CommandText" @bind:event="oninput" @onkeydown="HandleCommandKey"
+               placeholder="Type a command…" autocomplete="off" spellcheck="false" />
+        <button type="button" class="shortcuts-link" @onclick="OpenHelp">Shortcuts</button>
+    </form>
+</div>
+
+<dialog class="help-dialog" @ref="_helpDialog" aria-labelledby="help-title"
+        @oncancel="CloseHelp" @oncancel:preventDefault>
+    <div class="help-heading">
+        <h2 id="help-title">Keyboard shortcuts</h2>
+        <div class="help-actions">
+            <button type="button" class="help-dev-toggle" @onclick="ToggleDevNotation" aria-pressed="@(State.DevNotation ? "true" : "false")"
+                    title="Key notation: Vim (<leader>ff) or plain (Space then f f). :set dev / :set nodev">Notation: @(State.DevNotation ? "Vim" : "Plain")</button>
+            <button type="button" @onclick="CloseHelp" aria-label="Close help">×</button>
+        </div>
+    </div>
+    <p class="help-hint"><kbd>Esc</kbd> or <kbd>q</kbd> closes</p>
+    <div class="help-groups">
+        <div class="help-column">
+            <section class="help-group">
+                <h3>General</h3>
+                <dl>
+                    @if (State.DevNotation)
+                    {
+                        <dt><kbd>&lt;leader&gt;</kbd></dt><dd>@State.LeaderLabel</dd>
+                    }
+                    <dt><kbd>:</kbd></dt><dd>Command line (always works)</dd>
+                    <dt><kbd>?</kbd><kbd>:h</kbd><LeaderKeys Keys="sh" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /><LeaderKeys Keys="sk" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /></dt><dd>Open this help</dd>
+                    <dt><kbd>@Ctrl('h')</kbd><LeaderKeys Keys="e" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /></dt><dd>Focus the explorer</dd>
+                    <dt><kbd>@Ctrl('l')</kbd></dt><dd>Focus the README</dd>
+                    <dt><kbd>Tab</kbd></dt><dd>Browser focus navigation</dd>
+                </dl>
+            </section>
+            <section class="help-group">
+                <h3>Explorer</h3>
+                <dl>
+                    <dt><kbd>j</kbd><kbd>k</kbd></dt><dd>Move the selection</dd>
+                    <dt><kbd>l</kbd><kbd>Enter</kbd></dt><dd>Open a file or toggle a folder</dd>
+                    <dt><kbd>h</kbd></dt><dd>Collapse, or go to the parent</dd>
+                    <dt><kbd>gg</kbd><kbd>G</kbd></dt><dd>First or last entry</dd>
+                </dl>
+            </section>
+            <section class="help-group">
+                <h3>Find</h3>
+                <dl>
+                    <dt><LeaderKeys Keys="ff" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /><kbd>@Ctrl('p')</kbd></dt><dd>Fuzzy-find READMEs</dd>
+                    <dt><kbd>@Ctrl('j')</kbd><kbd>@Ctrl('k')</kbd></dt><dd>Next or previous result</dd>
+                    <dt><LeaderKeys Keys=";" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /></dt><dd>Pick a breadcrumb by letter</dd>
+                    <dt><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd><kbd>h</kbd></dt><dd>In the pick menu: move, open, back</dd>
+                </dl>
+            </section>
+        </div>
+        <div class="help-column">
+            <section class="help-group">
+                <h3>README</h3>
+                <dl>
+                    <dt><kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd></dt><dd>Move the cursor (prefix a count, e.g. <kbd>5j</kbd>)</dd>
+                    <dt><kbd>gg</kbd><kbd>G</kbd></dt><dd>Top or bottom (<kbd>12G</kbd> goes to line 12)</dd>
+                    <dt><kbd>@Ctrl('d')</kbd><kbd>@Ctrl('u')</kbd></dt><dd>Half page down or up</dd>
+                    <dt><kbd>]]</kbd><kbd>[[</kbd></dt><dd>Next or previous heading</dd>
+                    <dt><kbd>p</kbd></dt><dd>Toggle rendered or raw</dd>
+                    <dt><kbd>@Ctrl('c')</kbd></dt><dd>Copy the source (no selection)</dd>
+                    <dt><kbd>-</kbd></dt><dd>Back to the explorer</dd>
+                    <dt><LeaderKeys Keys="bx" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /></dt><dd>Close the tab</dd>
+                </dl>
+            </section>
+            <section class="help-group">
+                <h3>Links &amp; jumps</h3>
+                <dl>
+                    <dt><kbd>gx</kbd><kbd>Enter</kbd></dt><dd>Follow the link or play the video</dd>
+                    <dt><kbd>Enter</kbd></dt><dd>Full-screen image preview</dd>
+                    <dt><kbd>@Ctrl('o')</kbd><kbd>@Ctrl('i')</kbd></dt><dd>Jump back or forward</dd>
+                </dl>
+            </section>
+            <section class="help-group">
+                <h3>Commands</h3>
+                <dl>
+                    <dt><kbd>:e</kbd></dt><dd>Reload the README</dd>
+                    <dt><kbd>:Ex</kbd><kbd>:q</kbd></dt><dd>Return to the listing</dd>
+                    <dt><kbd>:set nokeys</kbd><kbd>:set keys</kbd></dt><dd>Keymaps off or on</dd>
+                    <dt><kbd>:set nodev</kbd><kbd>:set dev</kbd></dt><dd>Plain words or Vim notation</dd>
+                    <dt><kbd>:let mapleader = ","</kbd></dt><dd>Change the leader until reload</dd>
+                </dl>
+            </section>
+        </div>
+        <div class="help-column">
+            <section class="help-group">
+                <h3>Motions</h3>
+                <dl>
+                    <dt><kbd>w</kbd><kbd>b</kbd><kbd>e</kbd><kbd>ge</kbd></dt><dd>Word forward, back, end, previous end</dd>
+                    <dt><kbd>W</kbd><kbd>B</kbd><kbd>E</kbd><kbd>gE</kbd></dt><dd>Same for WORDs (blank-separated)</dd>
+                    <dt><kbd>0</kbd><kbd>^</kbd><kbd>$</kbd><kbd>g_</kbd></dt><dd>Line start, first or last non-blank, end</dd>
+                    <dt><kbd>|</kbd><kbd>gm</kbd><kbd>gM</kbd></dt><dd>Column N, middle of screen or text</dd>
+                    <dt><kbd>+</kbd><kbd>_</kbd><kbd>gj</kbd><kbd>gk</kbd></dt><dd>Next or current line start, display lines</dd>
+                    <dt><kbd>f</kbd><kbd>F</kbd><kbd>t</kbd><kbd>T</kbd></dt><dd>Find or till a character on the line</dd>
+                    <dt><kbd>;</kbd><kbd>,</kbd></dt><dd>Repeat the last find, same or reverse</dd>
+                    <dt><kbd>H</kbd><kbd>M</kbd><kbd>L</kbd></dt><dd>Top, middle or bottom of the screen</dd>
+                    <dt><kbd>zt</kbd><kbd>zz</kbd><kbd>zb</kbd></dt><dd>Scroll the line to the top, middle or bottom</dd>
+                    <dt><kbd>(</kbd><kbd>)</kbd><kbd>{</kbd><kbd>}</kbd></dt><dd>Previous or next sentence, paragraph</dd>
+                    <dt><kbd>%</kbd><kbd>50%</kbd></dt><dd>Matching bracket, or percentage of the file</dd>
+                    <dt><kbd>[(</kbd><kbd>[{</kbd><kbd>])</kbd><kbd>]}</kbd></dt><dd>Unmatched bracket</dd>
+                    <dt><kbd>][</kbd><kbd>[]</kbd></dt><dd>End of the next or previous section</dd>
+                    <dt><kbd>ma</kbd><kbd>'a</kbd><kbd>`a</kbd></dt><dd>Set a mark, jump to its line or spot</dd>
+                    <dt><kbd>mA</kbd><kbd>''</kbd></dt><dd>Mark across READMEs, jump back</dd>
+                </dl>
+            </section>
+        </div>
+    </div>
+</dialog>
+
+@if (_fileFinderOpen)
+{
+    <FileFinder OnOpen="OpenFoundFile" OnClose="CloseFileFinder" />
+}
+
+@code {
+    private readonly NavigationState State = new();
+    private readonly KeymapHandler _keymap = new();
+    private readonly CommandHandler _commands = new();
+    private PortfolioInterop? _interop;
+    private ElementReference _explorer;
+    private ElementReference _helpDialog;
+    private bool _helpDialogOpen;
+    private DotNetObjectReference<Home>? _dotNetReference;
+    private CancellationTokenSource? _loadCancellation;
+    private string? _documentSource;
+    private string _renderedDocument = string.Empty;
+    private string? _loadError;
+    private bool _loading;
+    private bool _lastWasRaw;
+    private string? _lastHighlightedSource;
+    private int _positionLine = 1;
+    private int _positionColumn = 1;
+    private int _totalLines = 1;
+    private string _scrollPosition = "All";
+    private HeadingBreadcrumb[] _headingBreadcrumbs = [];
+    private bool _fileFinderOpen;
+
+    private static string FormatFileSize(int bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes}b";
+        }
+
+        var size = (double)bytes;
+        var units = new[] { "k", "M", "G" };
+        var unit = -1;
+        do
+        {
+            size /= 1024;
+            unit++;
+        } while (size >= 1024 && unit < units.Length - 1);
+
+        return size.ToString("G2", System.Globalization.CultureInfo.InvariantCulture) + units[unit] + "b";
+    }
+
+    private string _readmeScrollGlyph
+    {
+        get
+        {
+            var glyphs = new[] { "▔", "▀", "▄", "▁" };
+            var index = Math.Clamp((_positionLine - 1) * glyphs.Length / Math.Max(1, _totalLines), 0, glyphs.Length - 1);
+            return glyphs[index];
+        }
+    }
+
+    private void OpenFileFinder() => _fileFinderOpen = true;
+    private void CloseFileFinder() => _fileFinderOpen = false;
+
+    private async Task OpenFoundFile(PortfolioEntry entry)
+    {
+        _fileFinderOpen = false;
+        await OnInternalRepositoryLink(entry.Repository);
+        await (_interop?.FocusPreviewAsync() ?? ValueTask.CompletedTask);
+    }
+
+    private string _scrollGlyph
+    {
+        get
+        {
+            var glyphs = new[] { "▔", "▀", "▄", "▁" };
+            var relative = State.Entries.Count < 2 ? 0 : State.SelectedIndex * (glyphs.Length - 1) / (State.Entries.Count - 1);
+            return glyphs[relative];
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _interop = new PortfolioInterop(JS);
+            _dotNetReference = DotNetObjectReference.Create(this);
+            await _interop.InitializeAsync(_dotNetReference, State.KeyboardEnabled, State.Leader);
+        }
+
+        if (_helpDialogOpen != State.IsHelpOpen)
+        {
+            await (_interop?.SetHelpOpenAsync(_helpDialog, State.IsHelpOpen) ?? ValueTask.CompletedTask);
+            _helpDialogOpen = State.IsHelpOpen;
+        }
+
+        if (State.IsReading && !_loading && _loadError is null && _documentSource is not null &&
+            (_lastHighlightedSource != _documentSource || _lastWasRaw != State.IsRawView))
+        {
+            _lastHighlightedSource = _documentSource;
+            _lastWasRaw = State.IsRawView;
+            await (_interop?.RefreshPreviewAsync() ?? ValueTask.CompletedTask);
+        }
+    }
+
+    private async Task SelectEntry(int index)
+    {
+        State.SelectIndex(index);
+        if (State.SelectedEntry.Kind == ExplorerItemKind.Folder)
+        {
+            State.OpenSelected();
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OpenEntry(int index)
+    {
+        State.SelectIndex(index);
+        if (State.SelectedEntry.Kind != ExplorerItemKind.Folder)
+        {
+            await OpenSelected();
+        }
+    }
+
+    private async Task OpenSelected()
+    {
+        var document = State.OpenSelected();
+        if (document is not null)
+        {
+            await LoadReadmeAsync(document);
+        }
+    }
+
+    private async Task GoParent()
+    {
+        CancelReadmeLoad();
+        State.GoToParent();
+        _documentSource = null;
+        _renderedDocument = string.Empty;
+        _loadError = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CloseDocument()
+    {
+        CancelReadmeLoad();
+        State.CloseDocument();
+        _documentSource = null;
+        _renderedDocument = string.Empty;
+        _loadError = null;
+        _loading = false;
+        _lastHighlightedSource = null;
+        _headingBreadcrumbs = [];
+        _positionLine = 1;
+        _totalLines = 1;
+        _scrollPosition = "All";
+        await (_interop?.FocusExplorerAsync(_explorer) ?? ValueTask.CompletedTask);
+    }
+
+    private async Task CopyDocumentAsync()
+    {
+        if (_documentSource is null || _interop is null)
+        {
+            return;
+        }
+
+        var copied = await _interop.CopyTextAsync(_documentSource);
+        var lines = _documentSource.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n').Length;
+        State.Message = copied ? $"{lines} lines yanked into \"+" : "Clipboard unavailable";
+    }
+
+    private async Task LoadReadmeAsync(PortfolioEntry entry)
+    {
+        CancelReadmeLoad();
+        var cancellation = new CancellationTokenSource();
+        _loadCancellation = cancellation;
+        _loading = true;
+        _loadError = null;
+        _documentSource = null;
+        _lastHighlightedSource = null;
+        _headingBreadcrumbs = [];
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var source = await Readmes.GetAsync(entry, cancellation.Token);
+            if (!cancellation.IsCancellationRequested && State.CurrentDocument == entry)
+            {
+                _documentSource = source;
+                _totalLines = Math.Max(1, source.Replace("\r\n", "\n").Split('\n').Length);
+                _positionLine = 1;
+                _scrollPosition = "All";
+                try
+                {
+                    _renderedDocument = Markdown.Render(source, entry);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    _renderedDocument = string.Empty;
+                    State.IsRawView = true;
+                    State.Message = $"Markdown rendering failed; showing raw text. {exception.Message}";
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (HttpRequestException exception)
+        {
+            if (!cancellation.IsCancellationRequested)
+            {
+                _loadError = exception.Message;
+            }
+        }
+        catch (OperationCanceledException exception) when (!cancellation.IsCancellationRequested)
+        {
+            _loadError = exception.Message;
+        }
+        finally
+        {
+            if (ReferenceEquals(_loadCancellation, cancellation))
+            {
+                _loading = false;
+                _loadCancellation = null;
+                cancellation.Dispose();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private Task RetryReadme() =>
+        State.CurrentDocument is null ? Task.CompletedTask : LoadReadmeAsync(State.CurrentDocument);
+
+    private void CancelReadmeLoad()
+    {
+        _loadCancellation?.Cancel();
+        _loadCancellation?.Dispose();
+        _loadCancellation = null;
+        _loading = false;
+    }
+
+    private string Ctrl(char key) => State.DevNotation ? $"<C-{key}>" : $"Ctrl+{key}";
+
+    private void ToggleDevNotation() =>
+        _commands.Handle(State, State.DevNotation ? ":set nodev" : ":set dev");
+
+    private async Task ToggleKeyboard()
+    {
+        State.KeyboardEnabled = !State.KeyboardEnabled;
+        State.Message = State.KeyboardEnabled
+            ? "Keymaps on."
+            : "Keymaps off. Type :set keys to turn them back on.";
+        await (_interop?.SetKeyboardEnabledAsync(State.KeyboardEnabled) ?? ValueTask.CompletedTask);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenHelp() => State.IsHelpOpen = true;
+    private void CloseHelp() => State.IsHelpOpen = false;
+
+    private async Task HandleCommandKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape")
+        {
+            State.CommandText = string.Empty;
+            State.IsCommandMode = false;
+            await (_interop?.FocusPreviewAsync() ?? ValueTask.CompletedTask);
+        }
+    }
+
+    private async Task SubmitCommand()
+    {
+        var action = _commands.Handle(State, State.CommandText);
+        if (action == CommandAction.SetKeyboard)
+        {
+            await (_interop?.SetKeyboardEnabledAsync(State.KeyboardEnabled) ?? ValueTask.CompletedTask);
+        }
+
+        await InvokeAsync(StateHasChanged);
+        await (_interop?.ApplyLeaderAsync(State.Leader) ?? ValueTask.CompletedTask);
+        if (action == CommandAction.Reload)
+        {
+            await RetryReadme();
+        }
+    }
+
+    [JSInvokable]
+    public async Task<bool> OnKeyDown(string key, bool explorerFocused)
+    {
+        var action = _keymap.Handle(State, key, explorerFocused);
+        switch (action)
+        {
+            case KeyAction.OpenFileFinder:
+                OpenFileFinder();
+                break;
+            case KeyAction.FocusExplorer:
+                await InvokeAsync(StateHasChanged);
+                await (_interop?.FocusExplorerAsync(_explorer) ?? ValueTask.CompletedTask);
+                break;
+            case KeyAction.OpenSelected:
+                if (State.IsReading && State.CurrentDocument is not null)
+                {
+                    await LoadReadmeAsync(State.CurrentDocument);
+                }
+                else
+                {
+                    CancelReadmeLoad();
+                    _documentSource = null;
+                    _renderedDocument = string.Empty;
+                }
+                break;
+            case KeyAction.ScrollUp or KeyAction.ScrollDown or KeyAction.ScrollTop or KeyAction.ScrollBottom or
+                KeyAction.HalfPageUp or KeyAction.HalfPageDown or KeyAction.CursorLeft or KeyAction.CursorRight or
+                KeyAction.WordForward or KeyAction.WordBackward or KeyAction.WordEnd or KeyAction.LineStart or
+                KeyAction.LineEnd:
+                await (_interop?.MoveCursorAsync(CursorMotion(action)) ?? ValueTask.CompletedTask);
+                return true;
+            case KeyAction.FollowLink or KeyAction.OpenLink:
+                if (!await (_interop?.FollowLinkAsync(action == KeyAction.OpenLink) ?? ValueTask.FromResult(false)))
+                {
+                    State.Message = "No link under cursor";
+                    await InvokeAsync(StateHasChanged);
+                }
+                return true;
+            case KeyAction.JumpBack:
+                await (_interop?.JumpAsync(-1) ?? ValueTask.CompletedTask);
+                return true;
+            case KeyAction.JumpForward:
+                await (_interop?.JumpAsync(1) ?? ValueTask.CompletedTask);
+                return true;
+            case KeyAction.NextHeading:
+                await (_interop?.JumpHeadingAsync(1) ?? ValueTask.CompletedTask);
+                break;
+            case KeyAction.PreviousHeading:
+                await (_interop?.JumpHeadingAsync(-1) ?? ValueTask.CompletedTask);
+                break;
+            case KeyAction.FocusPreview:
+                await (_interop?.FocusPreviewAsync() ?? ValueTask.CompletedTask);
+                return true;
+            case KeyAction.CloseDocument:
+                await CloseDocument();
+                await InvokeAsync(StateHasChanged);
+                return true;
+            case KeyAction.CopyDocument:
+                await CopyDocumentAsync();
+                break;
+            case KeyAction.FocusCommand:
+                await InvokeAsync(StateHasChanged);
+                await (_interop?.FocusCommandAsync() ?? ValueTask.CompletedTask);
+                return true;
+            case KeyAction.Changed:
+                if (!State.IsReading)
+                {
+                    CancelReadmeLoad();
+                }
+                else if (key == "p")
+                {
+                    _lastHighlightedSource = null;
+                }
+                break;
+        }
+
+        if (action != KeyAction.Ignored)
+        {
+            await InvokeAsync(StateHasChanged);
+            if (explorerFocused && action == KeyAction.Changed && key is "j" or "k" or "ArrowDown" or "ArrowUp" or "g" or "G")
+            {
+                await (_interop?.FocusExplorerAsync(_explorer) ?? ValueTask.CompletedTask);
+            }
+            else if (action == KeyAction.OpenSelected && State.IsReading)
+            {
+                await (_interop?.FocusPreviewAsync() ?? ValueTask.CompletedTask);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    [JSInvokable]
+    public Task OnPreviewPosition(int line, int column, int totalLines, string position, HeadingBreadcrumb[] headings, string? repository) =>
+        InvokeAsync(() =>
+        {
+            if (!State.IsReading || _loading || _documentSource is null ||
+                (!State.IsRawView && repository != State.CurrentDocument?.Repository))
+            {
+                return;
+            }
+
+            var boundedLine = Math.Clamp(line, 1, Math.Max(1, totalLines));
+            var boundedTotal = Math.Max(1, totalLines);
+            var activeHeadings = State.IsRawView ? [] : headings;
+            var boundedColumn = Math.Max(1, column);
+            if (_positionLine == boundedLine && _positionColumn == boundedColumn && _totalLines == boundedTotal && _scrollPosition == position &&
+                _headingBreadcrumbs.SequenceEqual(activeHeadings))
+            {
+                return;
+            }
+
+            _positionLine = boundedLine;
+            _positionColumn = boundedColumn;
+            _totalLines = boundedTotal;
+            _scrollPosition = position;
+            _headingBreadcrumbs = activeHeadings;
+            StateHasChanged();
+        });
+
+    private static string CursorMotion(KeyAction action) => action switch
+    {
+        KeyAction.ScrollUp => "up",
+        KeyAction.ScrollDown => "down",
+        KeyAction.ScrollTop => "top",
+        KeyAction.ScrollBottom => "bottom",
+        KeyAction.HalfPageUp => "halfUp",
+        KeyAction.HalfPageDown => "halfDown",
+        KeyAction.CursorLeft => "left",
+        KeyAction.CursorRight => "right",
+        KeyAction.WordForward => "wordForward",
+        KeyAction.WordBackward => "wordBackward",
+        KeyAction.WordEnd => "wordEnd",
+        KeyAction.LineStart => "lineStart",
+        _ => "lineEnd"
+    };
+
+    [JSInvokable]
+    public Task OnInternalRepositoryLink(string repository) =>
+        InvokeAsync(async () =>
+        {
+            CancelReadmeLoad();
+            State.NavigateTo(repository);
+            if (State.CurrentDocument is not null)
+            {
+                await LoadReadmeAsync(State.CurrentDocument);
+            }
+            else
+            {
+                _documentSource = null;
+                _renderedDocument = string.Empty;
+                await InvokeAsync(StateHasChanged);
+            }
+        });
+
+    [JSInvokable]
+    public IReadOnlyList<PickMenuItem> GetPickMenu(string repository) =>
+        PortfolioCatalog.GetPickMenu(repository);
+
+    [JSInvokable]
+    public Task OnMissingAnchor(string anchor) =>
+        InvokeAsync(() =>
+        {
+            State.Message = $"Heading not found: #{anchor}";
+            StateHasChanged();
+        });
+
+    public async ValueTask DisposeAsync()
+    {
+        CancelReadmeLoad();
+        if (_interop is not null)
+        {
+            await _interop.DisposeAsync();
+        }
+        _dotNetReference?.Dispose();
+    }
+}

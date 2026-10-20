@@ -1,0 +1,87 @@
+.welcome-screen {
+  width: min(100%, 62ch);
+  margin: auto;
+  padding: 32px 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.65;
+  text-align: center;
+}
+
+h1 {
+  margin: 0 0 28px;
+  font-size: inherit;
+  font-weight: 500;
+  letter-spacing: .06em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.welcome-hints {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 6ch;
+  row-gap: 2px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 28px auto;
+  text-align: left;
+}
+
+.welcome-hints > * {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  padding: 2px 0;
+}
+
+button {
+  background: transparent;
+  text-align: inherit;
+  line-height: inherit;
+}
+
+button:hover .welcome-key {
+  color: var(--gold);
+}
+
+.welcome-key {
+  color: var(--text);
+}
+
+.welcome-enter {
+  color: var(--purple);
+}
+
+.welcome-footer {
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .welcome-hints {
+    grid-template-columns: 1fr;
+    width: auto;
+  }
+
+  .welcome-hints > * {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 7px 0;
+    text-align: center;
+  }
+
+  .welcome-hints > * > span + span {
+    color: var(--muted);
+  }
+}

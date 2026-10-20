@@ -1,0 +1,45 @@
+<section class="welcome-screen" aria-label="Welcome">
+    <h1>SRAVIO.LI</h1>
+
+    <p>Simone Fidanza<br />.NET dev - C#, ASP.NET, MAUI. I also write Lua, Python, and some C/C++.<br />
+        <a href="https://github.com/sravioli">github.com/sravioli</a>
+    </p>
+
+    <div class="welcome-hints">
+        <button type="button" @onclick="OnOpenReadme">
+            <span>open <span class="welcome-key">README.md</span></span>
+            <span>to get to know me</span>
+        </button>
+        <div>
+            <span>press <span class="welcome-key">j / k</span></span>
+            <span>to browse projects</span>
+        </div>
+        <button type="button" @onclick="OnOpenSelected">
+            <span>press <span class="welcome-key">Enter</span></span>
+            <span>to open the selection</span>
+        </button>
+        <button type="button" @onclick="OnFindFiles">
+            <span>press <span class="welcome-key">@(DevNotation ? "<leader>ff" : $"{LeaderLabel} then f f")</span></span>
+            <span>to find a file</span>
+        </button>
+        <div>
+            <span>press <span class="welcome-key">gx</span></span>
+            <span>to open GitHub</span>
+        </div>
+        <button type="button" @onclick="OnOpenHelp">
+            <span>type <span class="welcome-key">:help<span class="welcome-enter">&lt;Enter&gt;</span></span></span>
+            <span>for keyboard help</span>
+        </button>
+    </div>
+
+    <p class="welcome-footer">Mouse and touch work here, too.</p>
+</section>
+
+@code {
+    [Parameter] public EventCallback OnOpenReadme { get; set; }
+    [Parameter] public EventCallback OnOpenSelected { get; set; }
+    [Parameter] public EventCallback OnOpenHelp { get; set; }
+    [Parameter] public EventCallback OnFindFiles { get; set; }
+    [Parameter] public string LeaderLabel { get; set; } = "Space";
+    [Parameter] public bool DevNotation { get; set; } = true;
+}

@@ -1,0 +1,44 @@
+@for (var index = 0; index < Entries.Count; index++)
+{
+    var entryIndex = index;
+    var item = Entries[index];
+    var folder = item.Kind == ExplorerItemKind.Folder;
+    <button @key="(item.Entry, item.Kind)" type="button"
+            class="entry @(entryIndex == SelectedIndex ? "selected" : "")"
+            aria-current="@(entryIndex == SelectedIndex ? "true" : null)"
+            aria-expanded="@(folder ? item.IsExpanded.ToString().ToLowerInvariant() : null)"
+            @onclick="() => OnSelect.InvokeAsync(entryIndex)"
+            @ondblclick="() => OnOpen.InvokeAsync(entryIndex)"
+            title="@item.Entry?.Description">
+        @for (var level = 0; level < item.Depth; level++)
+        {
+            <span class="tree-indent" aria-hidden="true"></span>
+        }
+        <span class="tree-chevron" aria-hidden="true">@(folder ? item.IsExpanded ? "⌄" : "›" : "")</span>
+        <span class="entry-icon @(folder ? "folder-icon" : "file-icon")" aria-hidden="true">
+            @if (folder)
+            {
+                @((MarkupString)(item.IsExpanded ? "&#xf0770;" : "&#xf024b;"))
+            }
+            else
+            {
+                @((MarkupString)"&#xf48a;")
+            }
+        </span>
+        @if (folder)
+        {
+            <strong>@item.Name</strong>
+        }
+        else
+        {
+            <span>@item.Name</span>
+        }
+    </button>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ExplorerItem> Entries { get; set; } = [];
+    [Parameter] public int SelectedIndex { get; set; }
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+    [Parameter] public EventCallback<int> OnOpen { get; set; }
+}

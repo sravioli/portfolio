@@ -1,0 +1,17 @@
+@if (Dev)
+{
+    <kbd>&lt;leader&gt;@Keys</kbd>
+}
+else
+{
+    <span class="key-seq"><kbd>@LeaderLabel</kbd>@(" then ")@for (var i = 0; i < Keys.Length; i++)
+    {
+        @(i > 0 ? " " : null)<kbd>@Keys[i]</kbd>
+    }</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Keys { get; set; } = string.Empty;
+    [Parameter] public bool Dev { get; set; } = true;
+    [Parameter] public string LeaderLabel { get; set; } = "Space";
+}

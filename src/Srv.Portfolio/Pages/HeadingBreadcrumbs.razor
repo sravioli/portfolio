@@ -1,0 +1,13 @@
+@foreach (var heading in Headings)
+{
+    <span class="crumb-divider" aria-hidden="true">›</span>
+    <a @key="heading.Id" class="heading-crumb" href="#@heading.Id" data-pick-segment
+       data-readme-heading="@heading.Id" title="@heading.Title">
+        <span class="heading-level" aria-hidden="true">H@(heading.Level)</span>
+        <span class="heading-title">@heading.Title</span>
+    </a>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<HeadingBreadcrumb> Headings { get; set; } = [];
+}
