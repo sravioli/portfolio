@@ -1,4 +1,7 @@
 // Neovim-style block cursor for the README preview, with a Neovide-like corner animation.
+import { getHeadingElements } from "./readme-headings.js";
+import { openInNewTab } from "./browser-links.js";
+
 const FAST_MS = 55;
 const SLOW_MS = 140;
 const SIZE_SNAP_RATIO = 2.5;
@@ -533,7 +536,7 @@ function unmatchedBracket(position, opening, direction) {
 
 function headingElements() {
     return root.matches(".readme-content")
-        ? [...root.querySelectorAll("h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]")]
+        ? getHeadingElements(root)
         : [...root.querySelectorAll(".raw-line")].filter(line => /^#{1,6}\s/.test(line.textContent));
 }
 
@@ -1092,7 +1095,7 @@ export function followLink() {
             return jumpToElement(document.getElementById(decodeURIComponent(href.slice(1))));
         }
         if (link.href) {
-            window.open(link.href, "_blank", "noopener,noreferrer");
+            openInNewTab(link.href);
             return true;
         }
     }
@@ -1102,12 +1105,12 @@ export function followLink() {
         return true;
     }
     if (atom.element && atom.node instanceof HTMLImageElement && atom.node.currentSrc) {
-        window.open(atom.node.currentSrc, "_blank", "noopener,noreferrer");
+        openInNewTab(atom.node.currentSrc);
         return true;
     }
     const url = urlUnderCursor(atom);
     if (!url) return false;
-    window.open(url, "_blank", "noopener,noreferrer");
+    openInNewTab(url);
     return true;
 }
 

@@ -3,6 +3,10 @@ import * as pick from "../js/pick-menu.js";
 import * as viewer from "../js/image-viewer.js";
 import * as whichKey from "../js/which-key.js";
 import { createMotionParser, isModifierKey } from "../js/vim-motions.js";
+import { getHeadingElements, readHeading, getActiveHeadings } from "../js/readme-headings.js";
+import { openInNewTab } from "../js/browser-links.js";
+
+export { getActiveHeadings };
 
 const ON_KEY_DOWN = "OnKeyDown";
 const ON_POSITION = "OnPreviewPosition";
@@ -316,10 +320,8 @@ async function reportPosition() {
             : viewport.scrollTop >= maxScroll - 1 ? "Bot"
                 : `${Math.round(viewport.scrollTop / maxScroll * 100)}%`;
     const headings = article ? getActiveHeadings(
-        [...article.querySelectorAll("h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]")].map(heading => ({
-            id: heading.id,
-            title: heading.textContent.trim(),
-            level: Number(heading.tagName.slice(1)),
+        getHeadingElements(article).map(heading => ({
+            ...readHeading(heading),
             top: heading.getBoundingClientRect().top
         })),
         (cursorPosition?.top ?? viewport.getBoundingClientRect().top + 32) + 1) : [];
@@ -329,16 +331,6 @@ async function reportPosition() {
     } catch {
         // The component can be disposed while a scroll callback is in flight.
     }
-}
-
-export function getActiveHeadings(headings, top) {
-    const path = [];
-    for (const heading of headings) {
-        if (heading.top > top) break;
-        while (path.length && path[path.length - 1].level >= heading.level) path.pop();
-        path.push({ id: heading.id, title: heading.title, level: heading.level });
-    }
-    return path;
 }
 
 function schedulePosition() {
@@ -419,7 +411,7 @@ function openExternal(event, target) {
     }
     if (url.origin === location.origin || !/^https?:$/.test(url.protocol)) return;
     event.preventDefault();
-    window.open(url.href, "_blank", "noopener,noreferrer");
+    openInNewTab(url.href);
 }
 
 function onImageError(event) {
@@ -526,7 +518,7 @@ export function jumpHeading(direction) {
 export function followLink(fallbackDown) {
     const welcomeLink = document.querySelector(".preview-scroll[data-welcome='true'] .welcome-screen a[href]");
     if (welcomeLink) {
-        window.open(welcomeLink.href, "_blank", "noopener,noreferrer");
+        openInNewTab(welcomeLink.href);
         return true;
     }
     if (fallbackDown && viewer.open(cursor.imageUnderCursor())) return true;

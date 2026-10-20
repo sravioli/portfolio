@@ -1,15 +1,12 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { importHomeModule } from "./helpers/import-source-module.mjs";
 
 const cursorStub = [
     "move", "motion", "jumpHeading", "jump", "followLink", "imageUnderCursor", "refresh", "sync", "position", "placeAt",
     "jumpToElement", "invalidate", "setNavigator", "setMoveListener", "dispose", "recordJump"
 ].map(name => `export function ${name}(...args) { globalThis.cursorCalls?.push(["${name}", ...args]); return false; }`).join("\n");
 const cursorModule = `data:text/javascript;base64,${Buffer.from(cursorStub).toString("base64")}`;
-const motionsModule = new URL("../../src/Srv.Portfolio/wwwroot/js/vim-motions.js", import.meta.url).href;
-const pickModule = new URL("../../src/Srv.Portfolio/wwwroot/js/pick-menu.js", import.meta.url).href;
-const viewerModule = new URL("../../src/Srv.Portfolio/wwwroot/js/image-viewer.js", import.meta.url).href;
 const realWhichKey = new URL("../../src/Srv.Portfolio/wwwroot/js/which-key.js", import.meta.url).href;
 const whichKeyStub = `export { DELAY, leaderMaps, entries } from ${JSON.stringify(realWhichKey)};
 const state = globalThis.whichKey;
@@ -28,13 +25,10 @@ function flushTimers() {
         callback();
     }
 }
-const source = (await readFile(new URL("../../src/Srv.Portfolio/Pages/Home.razor.js", import.meta.url), "utf8"))
-    .replace("\"../js/nvim-cursor.js\"", JSON.stringify(cursorModule))
-    .replace("\"../js/pick-menu.js\"", JSON.stringify(pickModule))
-    .replace("\"../js/image-viewer.js\"", JSON.stringify(viewerModule))
-    .replace("\"../js/which-key.js\"", JSON.stringify(whichKeyModule))
-    .replace("\"../js/vim-motions.js\"", JSON.stringify(motionsModule));
-const module = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const module = await importHomeModule({
+    "../js/nvim-cursor.js": cursorModule,
+    "../js/which-key.js": whichKeyModule
+});
 let now = 100;
 let helpOpen = false;
 let helpDialog = {};

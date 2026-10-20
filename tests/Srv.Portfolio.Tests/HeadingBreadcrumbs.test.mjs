@@ -1,18 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { importHomeModule } from "./helpers/import-source-module.mjs";
 
-const cursorModule = new URL("../../src/Srv.Portfolio/wwwroot/js/nvim-cursor.js", import.meta.url).href;
-const pickModule = new URL("../../src/Srv.Portfolio/wwwroot/js/pick-menu.js", import.meta.url).href;
-const viewerModule = new URL("../../src/Srv.Portfolio/wwwroot/js/image-viewer.js", import.meta.url).href;
-const motionsModule = new URL("../../src/Srv.Portfolio/wwwroot/js/vim-motions.js", import.meta.url).href;
-const source = (await readFile(new URL("../../src/Srv.Portfolio/Pages/Home.razor.js", import.meta.url), "utf8"))
-    .replace("\"../js/nvim-cursor.js\"", JSON.stringify(cursorModule))
-    .replace("\"../js/pick-menu.js\"", JSON.stringify(pickModule))
-    .replace("\"../js/image-viewer.js\"", JSON.stringify(viewerModule))
-    .replace("\"../js/which-key.js\"", JSON.stringify(new URL("../../src/Srv.Portfolio/wwwroot/js/which-key.js", import.meta.url).href))
-    .replace("\"../js/vim-motions.js\"", JSON.stringify(motionsModule));
-const { getActiveHeadings } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const { getActiveHeadings } = await importHomeModule();
 const headings = [
     { id: "intro", title: "Intro", level: 1, top: 10 },
     { id: "contribute", title: "Contribute", level: 2, top: 100 },

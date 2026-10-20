@@ -1,4 +1,8 @@
 // dropbar.nvim-style breadcrumb picker: letter labels on each segment, then nested menus.
+import { getHeadingElements, readHeading, buildHeadingTree } from "./readme-headings.js";
+
+export { buildHeadingTree };
+
 const LABELS = "abcdefghijklmnopqrstuvwxyz";
 const ICONS = { readme: "\u{f48a}", file: "\u{f48a}", folder: "\u{f024b}" };
 const MODIFIERS = ["Shift", "Control", "Alt", "Meta", "CapsLock"];
@@ -12,16 +16,6 @@ export function configure(handlers) {
 
 export function isActive() {
     return state !== null;
-}
-
-export function buildHeadingTree(headings) {
-    const stack = [];
-    return headings.map(heading => {
-        while (stack.length && stack[stack.length - 1].level >= heading.level) stack.pop();
-        const node = { ...heading, parent: stack.length ? stack[stack.length - 1].id : null };
-        stack.push(node);
-        return node;
-    });
 }
 
 export function headingItems(nodes, parent, currentId) {
@@ -39,8 +33,7 @@ export function headingItems(nodes, parent, currentId) {
 function documentHeadings() {
     const article = document.querySelector(".readme-content");
     if (!article) return [];
-    return buildHeadingTree([...article.querySelectorAll("h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]")]
-        .map(heading => ({ id: heading.id, title: heading.textContent.trim(), level: Number(heading.tagName.slice(1)) })));
+    return buildHeadingTree(getHeadingElements(article).map(readHeading));
 }
 
 function activeHeadings() {
