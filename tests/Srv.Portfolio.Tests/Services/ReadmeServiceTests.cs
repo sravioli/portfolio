@@ -16,14 +16,14 @@ internal sealed class ReadmeServiceTests : IDisposable
     }
 
     [Test]
-    public void Render_UnchangedSource_ReusesSanitizedHtml()
+    public async Task RenderAsync_UnchangedSource_ReusesSanitizedHtml()
     {
         using var handler = new RecordingHandler();
         var service = CreateService(handler);
         const string source = "# Cached\n\n<script>alert(1)</script>\n\nText";
 
-        var first = service.Render(source, PortfolioCatalog.RootEntry);
-        var second = service.Render(new string(source.ToCharArray()), PortfolioCatalog.RootEntry);
+        var first = await service.RenderAsync(source, PortfolioCatalog.RootEntry);
+        var second = await service.RenderAsync(new string(source.ToCharArray()), PortfolioCatalog.RootEntry);
 
         using (Assert.EnterMultipleScope())
         {
@@ -35,14 +35,14 @@ internal sealed class ReadmeServiceTests : IDisposable
     }
 
     [Test]
-    public void Render_ChangedSource_ReplacesCachedHtml()
+    public async Task RenderAsync_ChangedSource_ReplacesCachedHtml()
     {
         using var handler = new RecordingHandler();
         var service = CreateService(handler);
-        service.Render("# Original", PortfolioCatalog.RootEntry);
+        await service.RenderAsync("# Original", PortfolioCatalog.RootEntry);
 
-        var updated = service.Render("# Updated", PortfolioCatalog.RootEntry);
-        var repeated = service.Render("# Updated", PortfolioCatalog.RootEntry);
+        var updated = await service.RenderAsync("# Updated", PortfolioCatalog.RootEntry);
+        var repeated = await service.RenderAsync("# Updated", PortfolioCatalog.RootEntry);
 
         using (Assert.EnterMultipleScope())
         {
@@ -53,22 +53,122 @@ internal sealed class ReadmeServiceTests : IDisposable
     }
 
     [Test]
-    public void Render_DifferentRepositoryOrPath_ResolvesEachContext()
+    public async Task RenderAsync_DifferentRepositoryOrPath_ResolvesEachContext()
     {
         using var handler = new RecordingHandler();
         var service = CreateService(handler);
         var chrono = PortfolioCatalog.Find("chrono")!;
         const string source = "[Guide](guide.md)";
 
-        var first = service.Render(source, chrono);
-        var repository = service.Render(source, chrono with { Repository = "wezterm" });
-        var path = service.Render(source, chrono with { ReadmePath = "docs/README.md" });
+        var first = await service.RenderAsync(source, chrono);
+        var repository = await service.RenderAsync(source, chrono with { Repository = "wezterm" });
+        var path = await service.RenderAsync(source, chrono with { ReadmePath = "docs/README.md" });
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Does.Contain("/chrono/blob/main/.github/guide.md"));
             Assert.That(repository, Does.Contain("/wezterm/blob/main/.github/guide.md"));
             Assert.That(path, Does.Contain("/chrono/blob/main/docs/guide.md"));
+        }
+    }
+
+    [Test]
+    public async Task RenderAsync_RootReadme_UsesBuildTimeHtmlWithoutLoadingRenderer()
+    {
+        using var handler = new RecordingHandler();
+        var loader = new RecordingRendererLoader();
+        var service = CreateService(handler, renderer: loader);
+
+        var source = await service.GetAsync(PortfolioCatalog.RootEntry, CancellationToken.None);
+        var html = await service.RenderAsync(source, PortfolioCatalog.RootEntry);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(html, Is.EqualTo(MarkdownProcessor.Render(source, PortfolioCatalog.RootEntry)));
+            Assert.That(loader.LoadCount, Is.Zero);
+            Assert.That(handler.RequestCount, Is.Zero);
+        }
+    }
+
+    [Test]
+    public async Task RenderAsync_CachedExternalReadme_LoadsRendererOnlyOnce()
+    {
+        using var handler = new RecordingHandler();
+        var loader = new RecordingRendererLoader();
+        var service = CreateService(handler, renderer: loader);
+        var entry = PortfolioCatalog.Find("chrono")!;
+
+        var first = await service.RenderAsync("# External", entry);
+        var second = await service.RenderAsync("# External", entry);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first, Does.Contain("id=\"readme-external\""));
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(loader.LoadCount, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public async Task RenderAsync_CanceledRequest_DoesNotLoadRenderer()
+    {
+        using var handler = new RecordingHandler();
+        var loader = new RecordingRendererLoader();
+        var service = CreateService(handler, renderer: loader);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await service.RenderAsync("# External", PortfolioCatalog.Find("chrono")!, cancellation.Token));
+        Assert.That(loader.LoadCount, Is.Zero);
+    }
+
+    [Test]
+    public async Task RenderAsync_CanceledWhileLoading_DoesNotCancelSharedLoad()
+    {
+        using var handler = new RecordingHandler();
+        var pending = new TaskCompletionSource<IMarkdownRenderer>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var loader = new RecordingRendererLoader(() => pending.Task);
+        var service = CreateService(handler, renderer: loader);
+        var entry = PortfolioCatalog.Find("chrono")!;
+        using var cancellation = new CancellationTokenSource();
+
+        var canceled = service.RenderAsync("# Canceled", entry, cancellation.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAsync<TaskCanceledException>(async () => await canceled);
+
+        var next = service.RenderAsync("# Current", entry);
+        pending.SetResult(new Rendering.MarkdownRenderer());
+        var html = await next;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(html, Does.Contain("id=\"readme-current\""));
+            Assert.That(html, Does.Not.Contain("Canceled"));
+            Assert.That(pending.Task.IsCompletedSuccessfully, Is.True);
+        }
+    }
+
+    [Test]
+    public async Task RenderAsync_FailedLoad_SurfacesErrorAndAllowsRetry()
+    {
+        using var handler = new RecordingHandler();
+        var attempts = 0;
+        var loader = new RecordingRendererLoader(() => ++attempts == 1
+            ? Task.FromException<IMarkdownRenderer>(new HttpRequestException("Download failed"))
+            : Task.FromResult<IMarkdownRenderer>(new Rendering.MarkdownRenderer()));
+        var service = CreateService(handler, renderer: loader);
+        var entry = PortfolioCatalog.Find("chrono")!;
+
+        await Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await service.RenderAsync("# Retry", entry));
+        var html = await service.RenderAsync("# Retry", entry);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(html, Does.Contain("id=\"readme-retry\""));
+            Assert.That(loader.LoadCount, Is.EqualTo(2));
         }
     }
 
@@ -337,12 +437,27 @@ internal sealed class ReadmeServiceTests : IDisposable
     private ReadmeService CreateService(
         HttpMessageHandler handler,
         MemoryStorage? storage = null,
-        TimeProvider? time = null
+        TimeProvider? time = null,
+        IMarkdownRendererLoader? renderer = null
     )
     {
         var client = new HttpClient(handler);
         _clients.Add(client);
-        return new(client, storage ?? new MemoryStorage(), time ?? new ManualTimeProvider());
+        return new(client, storage ?? new MemoryStorage(), time ?? new ManualTimeProvider(),
+            renderer ?? new RecordingRendererLoader());
+    }
+
+    private sealed class RecordingRendererLoader(
+        Func<Task<IMarkdownRenderer>>? load = null) : IMarkdownRendererLoader
+    {
+        public int LoadCount { get; private set; }
+
+        public Task<IMarkdownRenderer> LoadAsync()
+        {
+            LoadCount++;
+            return load?.Invoke()
+                ?? Task.FromResult<IMarkdownRenderer>(new Rendering.MarkdownRenderer());
+        }
     }
 
     private static string RepositoriesJson(string prefix) =>

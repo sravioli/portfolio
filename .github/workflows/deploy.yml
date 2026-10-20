@@ -25,6 +25,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Install WebAssembly native tools
+        run: dotnet workload install wasm-tools
       - name: Configure GitHub Pages
         id: pages
         uses: actions/configure-pages@v6

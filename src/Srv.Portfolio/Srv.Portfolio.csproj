@@ -14,9 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AngleSharp" Version="1.8.5" />
-    <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
-    <PackageReference Include="Markdig" Version="1.4.2" />
+    <ProjectReference Include="..\Srv.Portfolio.Content\Srv.Portfolio.Content.csproj" />
+    <ProjectReference Include="..\Srv.Portfolio.Rendering\Srv.Portfolio.Rendering.csproj" />
+    <ProjectReference Include="..\Srv.Portfolio.ContentGenerator\Srv.Portfolio.ContentGenerator.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
     <PackageReference
       Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer"
@@ -24,4 +26,17 @@
       PrivateAssets="all"
     />
   </ItemGroup>
+
+  <ItemGroup>
+    <BlazorWebAssemblyLazyLoad Include="Srv.Portfolio.Rendering.wasm;AngleSharp.wasm;AngleSharp.Css.wasm;HtmlSanitizer.wasm;Markdig.wasm;System.Text.Encoding.CodePages.wasm" />
+    <Compile Include="$(IntermediateOutputPath)RootReadme.g.cs" />
+  </ItemGroup>
+
+  <Target Name="GenerateRootReadme" BeforeTargets="CoreCompile"
+          DependsOnTargets="ResolveProjectReferences" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="dotnet &quot;$(MSBuildProjectDirectory)/../Srv.Portfolio.ContentGenerator/bin/$(Configuration)/net10.0/Srv.Portfolio.ContentGenerator.dll&quot; &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)RootReadme.g.cs&quot;" />
+    <ItemGroup>
+      <FileWrites Include="$(IntermediateOutputPath)RootReadme.g.cs" />
+    </ItemGroup>
+  </Target>
 </Project>

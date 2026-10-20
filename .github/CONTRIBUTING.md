@@ -10,7 +10,8 @@ Thanks for your interest in improving this project.
 
 ## Development setup
 
-1. Install .NET 10 SDK.
+1. Install .NET 10 SDK and the native WebAssembly workload:
+   - `dotnet workload install wasm-tools`
 2. Restore dependencies:
    - `dotnet restore .\Srv.Portfolio.slnx`
 3. Build:
@@ -19,6 +20,12 @@ Thanks for your interest in improving this project.
    - `dotnet test --solution .\Srv.Portfolio.slnx`
    - Tests use NUnit and the native Microsoft.Testing.Platform runner selected by `global.json`.
    - For coverage: `dotnet test --solution .\Srv.Portfolio.slnx --coverlet --coverlet-output-format cobertura --results-directory TestResults`
+
+The root README HTML is generated under the app's `obj/` directory during builds.
+Edit `src/Srv.Portfolio.Content/Services/RootReadmeContent.cs` to change its source.
+The generator and browser use the same sanitizer and Markdown transformations.
+External README rendering is lazy-loaded; verify a Release publish in the browser
+when changing renderer dependencies or the lazy assembly list.
 
 ## Coding expectations
 

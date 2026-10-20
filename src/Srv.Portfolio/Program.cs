@@ -14,5 +14,6 @@ builder.Services.AddScoped(sp => new HttpClient
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IBrowserStorage, BrowserStorage>();
 builder.Services.AddScoped<ReadmeService>();
+builder.Services.AddScoped<IMarkdownRendererLoader, MarkdownRendererLoader>();
 
 await builder.Build().RunAsync().ConfigureAwait(true);

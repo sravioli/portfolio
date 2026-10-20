@@ -9,7 +9,8 @@ namespace Srv.Portfolio.Services;
 internal sealed partial class ReadmeService(
     HttpClient httpClient,
     IBrowserStorage storage,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    IMarkdownRendererLoader renderer
 )
 {
     private const string DescriptionsStorageKey = "srv.github-descriptions";
@@ -20,10 +21,15 @@ internal sealed partial class ReadmeService(
         _renderedCache = [];
     private Dictionary<string, string?>? _descriptions;
 
-    public string Render(string source, PortfolioEntry entry)
+    public async Task<string> RenderAsync(string source, PortfolioEntry entry, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(entry);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (entry.IsRoot && string.Equals(source, RootReadmeContent.Source, StringComparison.Ordinal))
+        {
+            return RootReadmeHtml.Value;
+        }
 
         var key = (entry.Repository, entry.ReadmePath);
         if (_renderedCache.TryGetValue(key, out var cached) &&
@@ -32,7 +38,9 @@ internal sealed partial class ReadmeService(
             return cached.Html;
         }
 
-        var html = MarkdownProcessor.Render(source, entry);
+        var loaded = await renderer.LoadAsync().WaitAsync(cancellationToken).ConfigureAwait(true);
+        cancellationToken.ThrowIfCancellationRequested();
+        var html = loaded.Render(source, entry);
         _renderedCache[key] = (source, html);
         return html;
     }
@@ -43,7 +51,7 @@ internal sealed partial class ReadmeService(
         if (entry.IsReadmeLocal)
         {
             return entry.IsRoot
-                ? RootReadme
+                ? RootReadmeContent.Source
                 : await BuildPluginReadmeAsync(cancellationToken).ConfigureAwait(true);
         }
 
@@ -179,21 +187,4 @@ internal sealed partial class ReadmeService(
     [JsonSerializable(typeof(StoredDescriptions))]
     private sealed partial class ReadmeJsonContext : JsonSerializerContext;
 
-    private const string RootReadme = """
-        # Hi, I'm Simone.
-
-        I work with .NET. I build Lua tools in my own time.
-
-        ## At work
-
-        C#, ASP.NET, and MAUI.
-
-        ## Outside work
-
-        WezTerm plugins, Neovim, Python, and some C/C++.
-
-        [GitHub](https://github.com/sravioli)
-
-        `j/k move · gx open link · - parent · :Ex explorer · ? help`
-        """;
 }

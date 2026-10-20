@@ -2,6 +2,7 @@
 @implements IAsyncDisposable
 @inject ReadmeService Readmes
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <PageTitle>Simone's Portfolio</PageTitle>
 
@@ -71,8 +72,15 @@
                         <button type="button" @onclick="RetryReadme">Retry</button>
                     </div>
                 }
-                else if (State.IsReading && _documentSource is not null)
+                else if (State.IsReading && _documentSource is not null && !_loading)
                 {
+                    @if (_renderingFailed)
+                    {
+                        <div class="load-error" role="alert">
+                            <p>Markdown rendering failed. Raw text is still available. Reload the page to retry downloading the renderer.</p>
+                            <button type="button" @onclick="() => Navigation.Refresh(forceReload: true)">Reload page</button>
+                        </div>
+                    }
                     @if (State.IsRawView)
                     {
                         <pre class="raw-readme" data-repository="@State.CurrentDocument?.Repository">@foreach (var line in _rawLines){<span class="raw-line">@line</span>}</pre>
@@ -270,6 +278,7 @@
     private string _renderedDocument = string.Empty;
     private string? _loadError;
     private bool _loading;
+    private bool _renderingFailed;
     private bool _lastWasRaw;
     private string? _lastHighlightedSource;
     private int _positionLine = 1;
@@ -409,6 +418,7 @@
         _documentSource = null;
         _rawLines = [];
         _renderedDocument = string.Empty;
+        _renderingFailed = false;
     }
 
     private async Task CopyDocumentAsync()
@@ -429,8 +439,10 @@
         var cancellation = new CancellationTokenSource();
         _loadCancellation = cancellation;
         _loading = true;
+        _renderingFailed = false;
         _loadError = null;
         _documentSource = null;
+        _renderedDocument = string.Empty;
         _rawLines = [];
         _lastHighlightedSource = null;
         _headingBreadcrumbs = [];
@@ -448,13 +460,22 @@
                 _scrollPosition = "All";
                 try
                 {
-                    _renderedDocument = Readmes.Render(source, entry);
+                    var rendered = await Readmes.RenderAsync(source, entry, cancellation.Token);
+                    if (!cancellation.IsCancellationRequested && State.CurrentDocument == entry)
+                    {
+                        _renderedDocument = rendered;
+                    }
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    _renderedDocument = string.Empty;
-                    State.IsRawView = true;
-                    State.Message = $"Markdown rendering failed; showing raw text. {exception.Message}";
+                    if (!cancellation.IsCancellationRequested && State.CurrentDocument == entry)
+                    {
+                        _renderedDocument = string.Empty;
+                        _renderingFailed = true;
+                        State.IsRawView = true;
+                        _rawLines = ReadmeText.SplitRawLines(source);
+                        State.Message = $"Markdown rendering failed; showing raw text. {exception.Message}";
+                    }
                 }
             }
         }

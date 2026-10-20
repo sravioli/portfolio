@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Srv.Portfolio.Content/Srv.Portfolio.Content.csproj" />
+    <Project Path="src/Srv.Portfolio.Rendering/Srv.Portfolio.Rendering.csproj" />
+    <Project Path="src/Srv.Portfolio.ContentGenerator/Srv.Portfolio.ContentGenerator.csproj" />
     <Project Path="src/Srv.Portfolio/Srv.Portfolio.csproj" />
   </Folder>
   <Folder Name="/tests/">
