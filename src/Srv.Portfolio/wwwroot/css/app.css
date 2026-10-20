@@ -1401,24 +1401,134 @@ kbd {
 #blazor-error-ui {
   position: fixed;
   z-index: 1000;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  inset: 0;
   display: none;
-  padding: 10px 16px;
-  background: var(--raised);
+  padding: 24px;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.runtime-error {
+  display: grid;
+  width: min(100%, 62ch);
+  min-height: calc(100% - 48px);
+  align-content: center;
+  margin: 0 auto;
+  color: var(--text);
+}
+
+.runtime-error-copy {
+  display: grid;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.runtime-error-location,
+.runtime-error-command,
+.runtime-error-title,
+.runtime-error-message {
+  margin: 0;
+}
+
+.runtime-error-location {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1ch;
+}
+
+.runtime-error-user {
+  color: var(--purple);
+}
+
+.runtime-error-path {
+  color: var(--blue);
+}
+
+.runtime-error-success {
+  color: var(--green);
+}
+
+.runtime-error-command,
+.runtime-error-arrow {
+  color: var(--text);
+}
+
+.runtime-error-status,
+.runtime-error-title {
   color: #d27e99;
 }
 
+.runtime-error-title {
+  overflow-wrap: anywhere;
+}
+
+.runtime-error-message {
+  margin: 12px 0 24px;
+  color: var(--muted);
+}
+
+.runtime-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--line);
+}
+
+#blazor-error-ui .reload,
+#blazor-error-ui .dismiss {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
 #blazor-error-ui .reload {
-  margin-left: 10px;
+  margin-right: -10px;
 }
 
 #blazor-error-ui .dismiss {
-  position: absolute;
-  top: 7px;
-  right: 12px;
-  cursor: pointer;
+  margin-left: 3ch;
+  color: #727169;
+}
+
+#blazor-error-ui .dismiss::before {
+  content: "# ";
+}
+
+#blazor-error-ui .reload:hover,
+#blazor-error-ui .dismiss:hover {
+  color: var(--gold);
+  text-decoration: underline;
+}
+
+.runtime-error-cursor {
+  width: 1ch;
+  height: 1.25em;
+  background: var(--text);
+  animation: runtime-error-blink 1s steps(1) infinite;
+}
+
+@keyframes runtime-error-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-error-cursor {
+    animation: none;
+  }
+}
+
+@media (max-width: 520px) {
+  #blazor-error-ui {
+    padding: 20px;
+  }
 }
 
 /* Kanagawa syntax tokens */

@@ -25,11 +25,33 @@
       <output class="boot-status">loading…</output>
     </div>
 
-    <div id="blazor-error-ui">
-      An unhandled error has occurred.
-      <a href="." class="reload">Reload</a>
-      <span class="dismiss">🗙</span>
+    <div id="blazor-error-ui" role="alert">
+      <section class="runtime-error" aria-label="Application error">
+        <div class="runtime-error-copy">
+          <p class="runtime-error-location"><span class="runtime-error-user">guest@portfolio</span> <span class="runtime-error-path">~</span></p>
+          <p class="runtime-error-command"><span class="runtime-error-success">(0)</span> <span aria-hidden="true">→</span> nvim .</p>
+          <p class="runtime-error-title">error: The portfolio encountered an unexpected application error.</p>
+          <p class="runtime-error-message">Press Enter to run it again. If it keeps happening, try later.</p>
+          <p class="runtime-error-location"><span class="runtime-error-user">guest@portfolio</span> <span class="runtime-error-path">~</span></p>
+          <div class="runtime-error-actions">
+            <span class="runtime-error-status">(1)</span>
+            <span class="runtime-error-arrow" aria-hidden="true">→</span>
+            <a href="." class="reload" title="Run again (Enter)">nvim .</a><span class="runtime-error-cursor" aria-hidden="true"></span>
+            <button type="button" class="dismiss" title="Hide this message without restarting the app">clear</button>
+          </div>
+        </div>
+      </section>
     </div>
+    <script>
+      document.addEventListener("keydown", event => {
+        const errorUi = document.getElementById("blazor-error-ui");
+        if (event.key !== "Enter" || getComputedStyle(errorUi).display === "none") return;
+        if (event.target.closest?.("#blazor-error-ui .dismiss")) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        location.reload();
+      }, true);
+    </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
   </body>
 </html>

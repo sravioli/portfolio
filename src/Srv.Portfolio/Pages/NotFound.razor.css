@@ -1,0 +1,72 @@
+.not-found {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 32px 20px;
+  background: radial-gradient(ellipse at 50% 50%, rgb(126 156 216 / 8%), transparent 60%), var(--bg);
+}
+
+.not-found-content {
+  width: min(100%, 62ch);
+}
+
+.not-found-location {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1ch;
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.prompt-user {
+  color: var(--purple);
+}
+
+.prompt-path {
+  color: var(--blue);
+}
+
+.prompt-success {
+  color: var(--green);
+}
+
+.prompt-arrow {
+  color: var(--text);
+}
+
+.not-found-command,
+.not-found-return {
+  display: flex;
+  align-items: baseline;
+  gap: 1ch;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.not-found-command > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.not-found-output {
+  margin: 0;
+  color: #d27e99;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.not-found-exit {
+  color: #d27e99;
+}
+
+.not-found-return a {
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.not-found-return a:hover {
+  text-decoration: underline;
+}
