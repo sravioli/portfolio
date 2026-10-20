@@ -457,9 +457,10 @@ a {
 
 .which-key {
   position: fixed;
-  right: 8px;
+  left: 50%;
   bottom: var(--which-key-bottom, 0);
-  left: 8px;
+  width: max-content;
+  max-width: calc(100vw - 16px);
   z-index: 60;
   padding: 14px 24px 6px;
   border: 1px solid var(--line);
@@ -467,6 +468,7 @@ a {
   background: var(--surface);
   color: var(--text);
   font-size: 13px;
+  transform: translateX(-50%);
 }
 
 .which-key-title {
