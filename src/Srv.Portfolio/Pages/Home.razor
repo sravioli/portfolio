@@ -445,7 +445,7 @@
             {
                 _documentSource = source;
                 _totalLines = Math.Max(1, source.Count(character => character == '\n') + 1);
-                _rawLines = State.IsRawView ? source.Replace("\r\n", "\n").Split('\n') : [];
+                _rawLines = State.IsRawView ? ReadmeText.SplitRawLines(source) : [];
                 _positionLine = 1;
                 _scrollPosition = "All";
                 try
@@ -491,13 +491,11 @@
 
     private void CancelReadmeLoad()
     {
-        _loadCancellation?.Cancel();
-        _loadCancellation?.Dispose();
-        _loadCancellation = null;
+        CancellationSources.CancelAndDispose(ref _loadCancellation);
         _loading = false;
     }
 
-    private string Ctrl(char key) => State.DevNotation ? $"<C-{key}>" : $"Ctrl+{key}";
+    private string Ctrl(char key) => KeyNotation.Control(key, State.DevNotation);
 
     private void ToggleDevNotation() =>
         _commands.Handle(State, State.DevNotation ? ":set nodev" : ":set dev");
@@ -609,7 +607,7 @@
                 {
                     _lastHighlightedSource = null;
                     _rawLines = State.IsRawView
-                        ? _documentSource?.Replace("\r\n", "\n").Split('\n') ?? []
+                        ? (_documentSource is null ? [] : ReadmeText.SplitRawLines(_documentSource))
                         : [];
                 }
                 break;

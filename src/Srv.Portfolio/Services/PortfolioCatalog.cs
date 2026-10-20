@@ -73,6 +73,9 @@ public static class PortfolioCatalog
     public static IReadOnlyList<string> GetPath(PortfolioEntry entry) =>
         GetAncestry(entry).Select(ancestor => ancestor.Name).ToArray();
 
+    internal static IEnumerable<ExplorerItem> GetContentListing(PortfolioEntry folder) =>
+        GetListing(folder).Where(item => item.Kind != ExplorerItemKind.Parent);
+
     public static IReadOnlyList<PortfolioEntry> GetAncestry(PortfolioEntry entry)
     {
         var entries = new Stack<PortfolioEntry>();
@@ -97,8 +100,7 @@ public static class PortfolioCatalog
             return [];
         }
 
-        return GetListing(folder)
-            .Where(item => item.Kind != ExplorerItemKind.Parent)
+        return GetContentListing(folder)
             .Select(item => item.Kind switch
             {
                 ExplorerItemKind.Readme => new PickMenuItem(

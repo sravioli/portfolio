@@ -19,7 +19,7 @@
             <span>to open the selection</span>
         </button>
         <button type="button" @onclick="OnFindFiles">
-            <span>press <span class="welcome-key">@(DevNotation ? "<leader>ff" : $"{LeaderLabel} then f f")</span></span>
+            <span>press <span class="welcome-key">@KeyNotation.Leader("ff", DevNotation, LeaderLabel)</span></span>
             <span>to find a file</span>
         </button>
         <div>

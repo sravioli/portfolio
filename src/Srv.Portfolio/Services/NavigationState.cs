@@ -105,8 +105,7 @@ public sealed class NavigationState
             SelectDocument(CurrentDocument!);
             IsReading = false;
             CurrentDocument = null;
-            IsRawView = false;
-            Message = null;
+            ResetDocumentView();
             return null;
         }
 
@@ -162,9 +161,14 @@ public sealed class NavigationState
     {
         IsReading = true;
         CurrentDocument = entry;
+        ResetDocumentView();
+        return entry;
+    }
+
+    private void ResetDocumentView()
+    {
         IsRawView = false;
         Message = null;
-        return entry;
     }
 
     private void SelectDocument(PortfolioEntry entry)
@@ -183,13 +187,8 @@ public sealed class NavigationState
 
     private void AddVisibleEntries(PortfolioEntry folder, int depth, List<ExplorerItem> items)
     {
-        foreach (var item in PortfolioCatalog.GetListing(folder))
+        foreach (var item in PortfolioCatalog.GetContentListing(folder))
         {
-            if (item.Kind == ExplorerItemKind.Parent)
-            {
-                continue;
-            }
-
             var expanded = item.Kind == ExplorerItemKind.Folder &&
                 _expandedFolders.Contains(item.Entry!.Repository);
             items.Add(item with { Depth = depth, IsExpanded = expanded });

@@ -52,9 +52,7 @@ public partial class FileFinder
 
     private async Task LoadPreview(bool debounce = false)
     {
-        _previewCancellation?.Cancel();
-        _previewCancellation?.Dispose();
-        _previewCancellation = null;
+        CancellationSources.CancelAndDispose(ref _previewCancellation);
         _preview = null;
         _error = null;
         _loading = false;
@@ -144,9 +142,7 @@ public partial class FileFinder
     public async ValueTask DisposeAsync()
     {
         _disposed = true;
-        _previewCancellation?.Cancel();
-        _previewCancellation?.Dispose();
-        _previewCancellation = null;
+        CancellationSources.CancelAndDispose(ref _previewCancellation);
         if (_interop is not null)
         {
             await _interop.DisposeAsync();

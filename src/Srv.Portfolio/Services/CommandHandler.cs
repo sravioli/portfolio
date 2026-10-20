@@ -76,9 +76,8 @@ public sealed class CommandHandler
             if (!isKeys)
             {
                 state.DevNotation = value;
-                state.Message = value
-                    ? "Vim notation: <leader>ff, <C-d>."
-                    : $"Plain notation: {state.LeaderLabel} then f f, Ctrl+d.";
+                state.Message = $"{(value ? "Vim" : "Plain")} notation: " +
+                    $"{KeyNotation.Leader("ff", value, state.LeaderLabel)}, {KeyNotation.Control('d', value)}.";
                 return CommandAction.SetDevNotation;
             }
 

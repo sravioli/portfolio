@@ -19,7 +19,6 @@ public sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
     private const string FocusExplorerMethod = "focusExplorer";
     private const string ApplyLeaderMethod = "applyLeader";
     private const string SetHelpOpenMethod = "setHelpOpen";
-    private const string DisposeMethod = "dispose";
 
     private IJSObjectReference? _module;
 
@@ -30,57 +29,44 @@ public sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
     }
 
     public ValueTask SetKeyboardEnabledAsync(bool enabled) =>
-        _module?.InvokeVoidAsync(SetKeyboardMethod, enabled) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(SetKeyboardMethod, enabled);
 
     public ValueTask RefreshPreviewAsync() =>
-        _module?.InvokeVoidAsync(RefreshMethod) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(RefreshMethod);
 
     public ValueTask MoveCursorAsync(string motion) =>
-        _module?.InvokeVoidAsync(MoveCursorMethod, motion) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(MoveCursorMethod, motion);
 
     public ValueTask<bool> FollowLinkAsync(bool fallbackDown) =>
-        _module?.InvokeAsync<bool>(FollowLinkMethod, fallbackDown) ?? ValueTask.FromResult(false);
+        _module.InvokeIfLoadedAsync(FollowLinkMethod, false, fallbackDown);
 
     public ValueTask JumpAsync(int direction) =>
-        _module?.InvokeVoidAsync(JumpMethod, direction) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(JumpMethod, direction);
 
     public ValueTask JumpHeadingAsync(int direction) =>
-        _module?.InvokeVoidAsync(JumpHeadingMethod, direction) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(JumpHeadingMethod, direction);
 
     public ValueTask<bool> CopyTextAsync(string text) =>
-        _module?.InvokeAsync<bool>(CopyTextMethod, text) ?? ValueTask.FromResult(false);
+        _module.InvokeIfLoadedAsync(CopyTextMethod, false, text);
 
     public ValueTask FocusCommandAsync() =>
-        _module?.InvokeVoidAsync(FocusCommandMethod) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(FocusCommandMethod);
 
     public ValueTask FocusPreviewAsync() =>
-        _module?.InvokeVoidAsync(FocusPreviewMethod) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(FocusPreviewMethod);
 
     public ValueTask FocusExplorerAsync(ElementReference explorer) =>
-        _module?.InvokeVoidAsync(FocusExplorerMethod, explorer) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(FocusExplorerMethod, explorer);
 
     public ValueTask ApplyLeaderAsync(string leader) =>
-        _module?.InvokeVoidAsync(ApplyLeaderMethod, leader) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(ApplyLeaderMethod, leader);
 
     public ValueTask SetHelpOpenAsync(ElementReference dialog, bool open) =>
-        _module?.InvokeVoidAsync(SetHelpOpenMethod, dialog, open) ?? ValueTask.CompletedTask;
+        _module.InvokeVoidIfLoadedAsync(SetHelpOpenMethod, dialog, open);
 
     public async ValueTask DisposeAsync()
     {
-        if (_module is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await _module.InvokeVoidAsync(DisposeMethod);
-            await _module.DisposeAsync();
-        }
-        catch (JSDisconnectedException)
-        {
-        }
-
+        await _module.DisposeModuleAsync();
         _module = null;
     }
 }
