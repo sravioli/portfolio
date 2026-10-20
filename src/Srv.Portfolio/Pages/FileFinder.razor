@@ -36,9 +36,13 @@
             }
             else if (_error is not null)
             {
-                <div role="alert">
-                    <p>Could not load preview: @_error</p>
+                <div class="finder-preview-error">
+                    <p class="finder-error-title" role="alert">E484: Can't open file for preview</p>
                     <button type="button" class="finder-retry" @onclick="() => LoadPreview()">Retry</button>
+                    <details>
+                        <summary>Error details</summary>
+                        <p>@_error</p>
+                    </details>
                 </div>
             }
             else if (_preview is not null)

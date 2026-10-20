@@ -146,6 +146,32 @@ input {
   color: var(--gold);
 }
 
+.finder-preview-error {
+  color: var(--muted);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.finder-error-title {
+  color: #d27e99;
+}
+
+.finder-preview-error .finder-retry {
+  margin-bottom: 16px;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.finder-preview-error .finder-retry:hover {
+  color: var(--text);
+}
+
+.finder-preview-error summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
 @media (max-width: 600px) {
   .file-finder {
     width: calc(100vw - 16px);
