@@ -20,6 +20,8 @@ internal sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
     private const string FocusExplorerMethod = "focusExplorer";
     private const string ApplyLeaderMethod = "applyLeader";
     private const string SetHelpOpenMethod = "setHelpOpen";
+    private const string InitializeLayoutMethod = "initializeLayout";
+    private const string SetDrawerOpenMethod = "setDrawerOpen";
 
     private IJSObjectReference? _module;
 
@@ -68,6 +70,13 @@ internal sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 
     public ValueTask SetHelpOpenAsync(ElementReference dialog, bool open) =>
         _module.InvokeVoidIfLoadedAsync(SetHelpOpenMethod, dialog, open);
+
+    /// <summary>Starts layout tracking and reports whether the narrow layout applies.</summary>
+    public ValueTask<bool> InitializeLayoutAsync() =>
+        _module.InvokeBooleanIfLoadedAsync(InitializeLayoutMethod, false);
+
+    public ValueTask SetDrawerOpenAsync(bool open) =>
+        _module.InvokeVoidIfLoadedAsync(SetDrawerOpenMethod, open);
 
     public async ValueTask DisposeAsync()
     {

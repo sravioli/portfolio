@@ -68,6 +68,33 @@ button:hover .welcome-key {
   color: var(--muted);
 }
 
+.welcome-icon {
+  color: var(--blue);
+}
+
+.touch-hints,
+.touch-footer {
+  display: none;
+}
+
+/* Same input-mode switch as the help dialog (set by Home.razor.js). */
+:root[data-touch-input] .keyboard-hints,
+:root[data-touch-input] .welcome-footer:not(.touch-footer) {
+  display: none;
+}
+
+:root[data-touch-input] .touch-hints {
+  display: grid;
+}
+
+:root[data-touch-input] .touch-footer {
+  display: block;
+}
+
+:root[data-touch-input] .touch-hints > button {
+  min-height: 44px;
+}
+
 @media (max-width: 900px) {
   .welcome-hints {
     grid-template-columns: 1fr;

@@ -16,6 +16,10 @@ const ON_KEY_DOWN = "OnKeyDown";
 const ON_POSITION = "OnPreviewPosition";
 const ON_INTERNAL_REPOSITORY = "OnInternalRepositoryLink";
 const ON_MISSING_ANCHOR = "OnMissingAnchor";
+const ON_LAYOUT_CHANGED = "OnLayoutChanged";
+const ON_DRAWER_DISMISSED = "OnDrawerDismissed";
+// Keep in sync with the narrow-layout media query in app.css.
+const NARROW_QUERY = "(max-width: 700px)";
 
 const LEADER_MAPS = whichKey.leaderMaps();
 const CTRL_MAPS = ["d", "u", "h", "l", "p", "c", "o", "i"];
@@ -36,6 +40,8 @@ const POSITION_REPORT_INTERVAL = 100;
 let highlighterPromise;
 let headingRoot;
 let headingIndex;
+let narrowMedia;
+let drawerEntry = false;
 
 function getHighlighter() {
   return /** @type {Window & { hljs?: { getLanguage: (name: string) => unknown, highlightElement: (element: Element) => void } }} */ (
@@ -141,8 +147,29 @@ function resetBracket() {
 }
 
 export function setHelpOpen(dialog, open) {
-  if (open && !dialog.open) dialog.showModal();
-  else if (!open && dialog.open) dialog.close();
+  if (open && !dialog.open) {
+    // Keyboard users see every binding; touch users start with them collapsed.
+    const keys = dialog.querySelector?.(".help-keys");
+    if (keys) keys.open = !touchInput;
+    dialog.showModal();
+  } else if (!open && dialog.open) dialog.close();
+}
+
+let touchInput = false;
+
+function setInputMode(touch) {
+  if (touch === touchInput) return;
+  touchInput = touch;
+  document.documentElement?.toggleAttribute("data-touch-input", touch);
+}
+
+function onPointerInput(event) {
+  setInputMode(event.pointerType === "touch");
+}
+
+function onKeyInput(event) {
+  // Soft keyboards only type into text fields, so keys elsewhere mean a real keyboard.
+  if (!isTextEntry(event.target)) setInputMode(false);
 }
 
 function isTextEntry(target) {
@@ -738,6 +765,49 @@ export function focusPreview() {
   )?.focus();
 }
 
+function notify(method, ...args) {
+  dotNetRef?.invokeMethodAsync(method, ...args).catch(() => {
+    // The component can be disposed while a notification is in flight.
+  });
+}
+
+function onLayoutChange(event) {
+  if (drawerEntry) {
+    drawerEntry = false;
+    history.back();
+  }
+  notify(ON_LAYOUT_CHANGED, event.matches);
+}
+
+function onPopState() {
+  if (!drawerEntry || history.state?.portfolioDrawer) return;
+  drawerEntry = false;
+  notify(ON_DRAWER_DISMISSED);
+}
+
+/** Starts tracking the narrow layout; returns whether it currently applies. */
+export function initializeLayout() {
+  narrowMedia ??= window.matchMedia(NARROW_QUERY);
+  narrowMedia.addEventListener("change", onLayoutChange);
+  window.addEventListener("popstate", onPopState);
+  setInputMode(window.matchMedia("(pointer: coarse)").matches);
+  document.addEventListener("pointerdown", onPointerInput, true);
+  document.addEventListener("keydown", onKeyInput, true);
+  return narrowMedia.matches;
+}
+
+/** On narrow layouts the explorer drawer owns a history entry, so Back closes it. */
+export function setDrawerOpen(open) {
+  if (!narrowMedia?.matches) return;
+  if (open && !drawerEntry) {
+    history.pushState({ ...(history.state ?? {}), portfolioDrawer: true }, "");
+    drawerEntry = true;
+  } else if (!open && drawerEntry) {
+    drawerEntry = false;
+    history.back();
+  }
+}
+
 export function dispose() {
   resetLeader();
   pick.cancel();
@@ -758,5 +828,10 @@ export function dispose() {
   headingRoot = null;
   headingIndex = null;
   cursor.dispose();
+  narrowMedia?.removeEventListener("change", onLayoutChange);
+  window.removeEventListener("popstate", onPopState);
+  document.removeEventListener("pointerdown", onPointerInput, true);
+  document.removeEventListener("keydown", onKeyInput, true);
+  drawerEntry = false;
   dotNetRef = undefined;
 }

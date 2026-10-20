@@ -11,14 +11,7 @@ import {
 import { createDomFixture } from "../../helpers/dom-fixture.mjs";
 
 test("leader maps are flattened from the which-key tree", () => {
-  assert.deepEqual([...leaderMaps()].sort(), [
-    ";",
-    "bx",
-    "e",
-    "ff",
-    "sh",
-    "sk",
-  ]);
+  assert.deepEqual([...leaderMaps()].sort(), [";", "bx", "e", "ff"]);
 });
 
 test("entries list leaves before groups and name the groups", () => {
@@ -26,16 +19,16 @@ test("entries list leaves before groups and name the groups", () => {
     entries("").map((item) => [item.key, item.group, item.desc]),
     [
       [";", false, "Dropbar pick"],
-      ["e", false, "Focus the explorer"],
+      ["e", false, "Toggle the explorer"],
       ["b", true, "+buffer"],
       ["f", true, "+find"],
-      ["s", true, "+search"],
     ],
   );
   assert.deepEqual(
-    entries("s").map((item) => item.key),
-    ["h", "k"],
+    entries("f").map((item) => item.key),
+    ["f"],
   );
+  assert.equal(entries("s"), null);
   assert.equal(entries("x"), null);
   assert.equal(entries("e"), null);
 });

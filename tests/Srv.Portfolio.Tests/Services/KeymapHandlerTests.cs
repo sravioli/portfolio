@@ -6,6 +6,63 @@ namespace Srv.Portfolio.Tests.Services;
 internal sealed class KeymapHandlerTests
 {
     [Test]
+    public void HandleLeaderEInExplorerClosesIt()
+    {
+        var state = new NavigationState();
+
+        var result = new KeymapHandler().Handle(state, "<leader>e", explorerFocused: true);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.CloseExplorer));
+            Assert.That(state.IsExplorerOpen, Is.False);
+        }
+    }
+
+    [TestCase("<leader>e")]
+    [TestCase("<C-h>")]
+    public void HandleExplorerKeysOpenClosedExplorer(string key)
+    {
+        var state = new NavigationState { IsExplorerOpen = false };
+
+        var result = new KeymapHandler().Handle(state, key);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.FocusExplorer));
+            Assert.That(state.IsExplorerOpen, Is.True);
+        }
+    }
+
+    [Test]
+    public void HandleCtrlHInExplorerKeepsItOpen()
+    {
+        var state = new NavigationState();
+
+        var result = new KeymapHandler().Handle(state, "<C-h>", explorerFocused: true);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.FocusExplorer));
+            Assert.That(state.IsExplorerOpen, Is.True);
+        }
+    }
+
+    [Test]
+    public void HandleSelectionMotionOpensClosedExplorer()
+    {
+        var state = new NavigationState { IsExplorerOpen = false };
+
+        var result = new KeymapHandler().Handle(state, "j");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.Changed));
+            Assert.That(state.IsExplorerOpen, Is.True);
+            Assert.That(state.SelectedIndex, Is.EqualTo(1));
+        }
+    }
+    [Test]
     public void HandleLeaderFFOpensFileFinderWithoutChangingCurrentDocument()
     {
         var state = new NavigationState();

@@ -5,6 +5,24 @@ namespace Srv.Portfolio.Tests.Services;
 [TestFixture]
 internal sealed class CommandHandlerTests
 {
+    [TestCase(":NvimTreeToggle", true, false)]
+    [TestCase(":NvimTreeToggle", false, true)]
+    [TestCase(":NvimTreeOpen", false, true)]
+    [TestCase(":NvimTreeClose", true, false)]
+    [TestCase(":nvimtreeclose", true, false)]
+    public void HandleNvimTreeCommandsSetExplorer(string command, bool initiallyOpen, bool expected)
+    {
+        var state = new NavigationState { IsExplorerOpen = initiallyOpen, IsCommandMode = true };
+
+        var result = CommandHandler.Handle(state, command);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(CommandAction.SetExplorer));
+            Assert.That(state.IsExplorerOpen, Is.EqualTo(expected));
+            Assert.That(state.IsCommandMode, Is.False);
+        }
+    }
     [Test]
     public void NavigationStateDefaultLeaderIsSpace()
     {

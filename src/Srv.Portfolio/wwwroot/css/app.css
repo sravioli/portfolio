@@ -183,15 +183,13 @@ a {
   white-space: nowrap;
 }
 
-.tab-actions button,
-.shortcuts-link {
+.tab-actions button {
   padding: 1px 3px;
   background: transparent;
   color: var(--muted);
 }
 
-.tab-actions button:hover,
-.shortcuts-link:hover {
+.tab-actions button:hover {
   color: var(--text);
 }
 
@@ -218,6 +216,34 @@ a {
 
 .portfolio-shell[data-reading="false"] .tab-actions {
   height: 22px;
+}
+
+.explorer-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: transparent;
+}
+
+.explorer-label:hover {
+  color: var(--text);
+}
+
+.explorer-toggle-icon {
+  color: var(--blue);
+}
+
+.portfolio-shell[data-explorer="closed"] .tabline {
+  grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto;
+}
+
+.portfolio-shell[data-explorer="closed"] .explorer-label-text,
+.portfolio-shell[data-explorer="closed"] .explorer,
+.explorer-backdrop,
+.status-short {
+  display: none;
 }
 
 .workspace {
@@ -851,10 +877,12 @@ a {
 }
 
 .power-arrow {
-  width: 8px;
+  width: 9px;
   height: 20px;
-  flex: 0 0 8px;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  flex: 0 0 9px;
+  margin-left: -1px;
+  /* The extra 1px column overlaps the previous block so fractional widths never leave a seam. */
+  clip-path: polygon(0 0, 1px 0, 100% 50%, 1px 100%, 0 100%);
 }
 
 .blue-arrow {
@@ -862,7 +890,8 @@ a {
 }
 
 .surface-arrow {
-  background: var(--raised);
+  margin-right: -1px;
+  background: linear-gradient(90deg, var(--surface) 0 1px, var(--raised) 1px);
   clip-path: none;
 }
 
@@ -871,7 +900,7 @@ a {
   width: 100%;
   height: 100%;
   background: var(--surface);
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  clip-path: polygon(0 0, 1px 0, 100% 50%, 1px 100%, 0 100%);
   content: "";
 }
 
@@ -884,6 +913,31 @@ a {
 
 .cwd-segment i {
   font-style: italic;
+}
+
+.cwd-segment {
+  display: flex;
+  align-items: center;
+}
+
+.cwd-path {
+  display: flex;
+  min-width: 0;
+  margin-left: 1ch;
+}
+
+.cwd-head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cwd-tail {
+  flex: none;
+}
+
+.cwd-short {
+  display: none;
 }
 
 .file-segment {
@@ -928,10 +982,31 @@ a {
   position: absolute;
   top: 0;
   left: -8px;
-  width: 8px;
+  width: 9px;
   height: 20px;
   background: var(--blue);
-  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  clip-path: polygon(calc(100% - 1px) 0, 100% 0, 100% 100%, calc(100% - 1px) 100%, 0 50%);
+  content: "";
+}
+
+/* Drawn rather than a block glyph, whose height depends on the font's metrics. */
+.scroll-thumb {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 100%;
+  margin-left: 4px;
+  vertical-align: top;
+}
+
+.scroll-thumb::after {
+  position: absolute;
+  /* 1px inset keeps the thumb distinguishable from the statusline's edges. */
+  top: calc(1px + var(--scroll, 0) * (100% - 5px));
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: currentColor;
   content: "";
 }
 
@@ -974,8 +1049,14 @@ a {
   text-overflow: ellipsis;
 }
 
-.reading-status .cwd-segment {
-  max-width: 34ch;
+.reading-status .status-left > * {
+  flex: 0 0 auto;
+}
+
+/* Only the path gives way, and only when the statusline runs out of room. */
+.reading-status .status-left > .cwd-segment {
+  flex: 0 1 auto;
+  min-width: 0;
   font-weight: 700;
 }
 
@@ -1015,9 +1096,9 @@ a {
 .reading-status .byte-size::before {
   position: absolute;
   inset: 0 auto 0 -8px;
-  width: 8px;
+  width: 9px;
   background: var(--raised);
-  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  clip-path: polygon(calc(100% - 1px) 0, 100% 0, 100% 100%, calc(100% - 1px) 100%, 0 50%);
   content: "";
 }
 
@@ -1076,10 +1157,10 @@ a {
 .tree-count::before {
   position: absolute;
   left: -8px;
-  width: 8px;
+  width: 9px;
   height: 100%;
   background: var(--raised);
-  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  clip-path: polygon(calc(100% - 1px) 0, 100% 0, 100% 100%, calc(100% - 1px) 100%, 0 50%);
   content: "";
 }
 
@@ -1117,12 +1198,6 @@ a {
 
 .command-line input::placeholder {
   color: #74747d;
-}
-
-.shortcuts-link {
-  flex: 0 0 auto;
-  font-size: 11px;
-  text-decoration: underline;
 }
 
 .help-dialog {
@@ -1176,6 +1251,64 @@ a {
   color: var(--muted);
   font-size: 11px;
   line-height: 2;
+}
+
+/* Touch-only help and labels; JS sets data-touch-input from the last pointer or key used. */
+.input-touch,
+.help-touch,
+.help-keys > summary {
+  display: none;
+}
+
+:root[data-touch-input] .input-keys {
+  display: none;
+}
+
+:root[data-touch-input] .input-touch {
+  display: inline;
+}
+
+:root[data-touch-input] .help-touch {
+  display: block;
+}
+
+:root[data-touch-input] .help-keys > summary {
+  display: list-item;
+}
+
+:root[data-touch-input] .help-dialog:not(:has(.help-keys[open])) .help-dev-toggle {
+  display: none;
+}
+
+.help-touch .help-group {
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 14px;
+}
+
+.help-touch dd {
+  white-space: normal;
+}
+
+.help-icon {
+  color: var(--blue);
+}
+
+.help-note {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.help-keys > summary {
+  margin-top: 18px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 .help-groups {
@@ -1351,43 +1484,79 @@ kbd {
   .entry {
     min-height: 44px;
   }
-}
 
-@media (max-width: 600px) {
-  .tabline {
-    grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
+  .keys-toggle {
+    display: none;
   }
 
-  .explorer-label,
+  .tab-actions button {
+    min-width: 32px;
+    min-height: 26px;
+  }
+}
+
+/* Narrow layout: one pane at a time; the explorer becomes a drawer. Keep in sync with NARROW_QUERY. */
+@media (max-width: 700px) {
+  .tabline,
+  .portfolio-shell[data-explorer="closed"] .tabline {
+    grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto;
+  }
+
+  .explorer-label-text,
   .tab-close {
     display: none;
   }
 
-  .active-tab {
-    grid-column: 1;
-  }
-
-  .portfolio-shell[data-reading="false"] .explorer-label {
-    display: block;
-    padding-left: 12px;
-    text-align: left;
-  }
-
   .tab-actions {
-    grid-column: 3;
     gap: 5px;
     padding: 0 6px;
   }
 
   .workspace {
-    flex-direction: column;
+    position: relative;
   }
 
-  .explorer {
-    flex: 0 0 43%;
-    max-height: 43%;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
+  .explorer,
+  .portfolio-shell[data-explorer="closed"] .explorer {
+    position: absolute;
+    z-index: 5;
+    inset: 0 auto 0 0;
+    display: flex;
+    width: min(85vw, 320px);
+    border-right: 1px solid var(--line);
+    box-shadow: 4px 0 18px rgb(0 0 0 / 0.35);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 180ms ease-out,
+      visibility 0s linear 180ms;
+  }
+
+  .portfolio-shell[data-explorer="open"] .explorer {
+    transform: none;
+    visibility: visible;
+    transition: transform 180ms ease-out;
+  }
+
+  .portfolio-shell[data-explorer="open"] .explorer-backdrop {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    display: block;
+    background: rgb(0 0 0 / 0.45);
+  }
+
+  .status-full,
+  .cwd-full {
+    display: none;
+  }
+
+  .status-short {
+    display: inline;
+  }
+
+  .cwd-short {
+    display: flex;
   }
 
   .preview-area {
@@ -1398,31 +1567,16 @@ kbd {
     padding: 16px 14px 22px;
   }
 
-  .cwd-segment,
-  .surface-arrow,
-  .file-arrow,
   .branch-segment,
   .byte-size,
-  .encoding {
+  .encoding,
+  .file-format,
+  .filetype {
     display: none;
-  }
-
-  .status-right {
-    gap: 5px;
-    padding-right: 5px;
-    font-size: 10px;
   }
 
   .status-left {
     overflow: hidden;
-  }
-
-  .statusline {
-    font-size: 11px;
-  }
-
-  .file-segment {
-    padding: 0 5px;
   }
 
   .message-line {
@@ -1433,16 +1587,35 @@ kbd {
     padding: 15px;
   }
 
-  .help-column {
-    grid-template-columns: max-content minmax(0, 1fr);
-    column-gap: 10px;
+  /* Stack each binding: keys, then the description below them. */
+  .help-column,
+  .help-touch .help-group {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .help-dialog dl {
+    row-gap: 3px;
     font-size: 11px;
+  }
+
+  .help-dialog dt {
+    flex-wrap: wrap;
+  }
+
+  .help-dialog dt:not(:first-of-type) {
+    margin-top: 9px;
   }
 
   .help-dialog dd {
     white-space: normal;
+  }
+}
+
+/* Short viewports (landscape phones): drop the message and command lines until they are needed. */
+@media (max-height: 500px) and (pointer: coarse) {
+  .portfolio-shell:not(:has(.command-status)) .message-line,
+  .portfolio-shell:not(:has(.command-status)) .command-line {
+    display: none;
   }
 }

@@ -26,6 +26,7 @@ internal sealed class NavigationState
     public int SelectedIndex { get; private set; }
     public bool IsReading { get; private set; }
     public bool IsRawView { get; set; }
+    public bool IsExplorerOpen { get; set; } = true;
     public bool KeyboardEnabled { get; set; } = true;
     public bool DevNotation { get; set; } = true;
     public string Leader { get; set; } = " ";

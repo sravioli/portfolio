@@ -2,7 +2,7 @@
 export const DELAY = 300;
 
 export const LEADER_TREE = {
-  e: { desc: "Focus the explorer", icon: "\u{f0645}" },
+  e: { desc: "Toggle the explorer", icon: "\u{f0645}" },
   ";": { desc: "Dropbar pick", icon: "\u{f0c9}" },
   b: {
     group: "buffer",
@@ -11,13 +11,6 @@ export const LEADER_TREE = {
   f: {
     group: "find",
     keys: { f: { desc: "Find READMEs", icon: "\u{f0349}" } },
-  },
-  s: {
-    group: "search",
-    keys: {
-      h: { desc: "Help", icon: "\u{f02d7}" },
-      k: { desc: "Keymaps", icon: "\u{f030c}" },
-    },
   },
 };
 

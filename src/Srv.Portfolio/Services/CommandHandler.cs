@@ -10,6 +10,7 @@ internal enum CommandAction
     SetLeader,
     SetKeyboard,
     SetDevNotation,
+    SetExplorer,
     Reload,
     Invalid,
 }
@@ -87,6 +88,20 @@ internal static partial class CommandHandler
 
             state.SetKeyboardEnabled(value);
             return CommandAction.SetKeyboard;
+        }
+
+        var explorerOpen = command switch
+        {
+            _ when command.Equals("NvimTreeToggle", StringComparison.OrdinalIgnoreCase) =>
+                !state.IsExplorerOpen,
+            _ when command.Equals("NvimTreeOpen", StringComparison.OrdinalIgnoreCase) => true,
+            _ when command.Equals("NvimTreeClose", StringComparison.OrdinalIgnoreCase) => false,
+            _ => (bool?)null,
+        };
+        if (explorerOpen is { } open)
+        {
+            state.IsExplorerOpen = open;
+            return CommandAction.SetExplorer;
         }
 
         if (

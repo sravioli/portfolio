@@ -87,14 +87,14 @@ internal sealed class NeovimKeymapTests
 
     [TestCase("<leader>sk")]
     [TestCase("<leader>sh")]
-    public void HandleSearchHelpMapsOpenHelp(string key)
+    public void HandleRemovedSearchHelpMapsAreIgnored(string key)
     {
         var state = new NavigationState();
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(new KeymapHandler().Handle(state, key), Is.EqualTo(KeyAction.Changed));
-            Assert.That(state.IsHelpOpen, Is.True);
+            Assert.That(new KeymapHandler().Handle(state, key), Is.EqualTo(KeyAction.Ignored));
+            Assert.That(state.IsHelpOpen, Is.False);
         }
     }
 }

@@ -154,6 +154,22 @@ test("help opens in the modal top layer and closes without redundant calls", () 
   assert.deepEqual(calls, ["showModal", "close"]);
 });
 
+test("help opens with keyboard shortcuts expanded when no touch input was seen", () => {
+  const keys = { open: false };
+  const dialog = {
+    open: false,
+    querySelector: (selector) => (selector === ".help-keys" ? keys : null),
+    showModal() {
+      this.open = true;
+    },
+    close() {
+      this.open = false;
+    },
+  };
+  module.setHelpOpen(dialog, true);
+  assert.equal(keys.open, true);
+});
+
 test("leader ff opens search and consumes both f keys", async () => {
   initialize(" ");
   assert.equal((await key(" ")).prevented, true);
@@ -256,12 +272,12 @@ test("which-key shows after the delay and keeps the sequence alive", async () =>
   flushTimers();
   assert.deepEqual(whichKey.titles, ["<leader>"]);
   now += 5000;
-  await key("s");
-  assert.deepEqual(whichKey.titles, ["<leader>", "<leader>s"]);
+  await key("f");
+  assert.deepEqual(whichKey.titles, ["<leader>", "<leader>f"]);
   now += 5000;
-  await key("k");
+  await key("f");
   assert.equal(whichKey.open, false);
-  assert.deepEqual(calls, [["OnKeyDown", "<leader>sk", false]]);
+  assert.deepEqual(calls, [["OnKeyDown", "<leader>ff", false]]);
 });
 
 test("which-key Backspace goes back and Escape closes", async () => {
@@ -323,12 +339,6 @@ test("Neovim-style ctrl, bracket and extended leader maps dispatch", async () =>
   await key(" ");
   await key("b");
   await key("x");
-  await key(" ");
-  await key("s");
-  await key("k");
-  await key(" ");
-  await key("s");
-  await key("h");
   assert.deepEqual(
     calls.map((call) => call[1]),
     [
@@ -339,8 +349,6 @@ test("Neovim-style ctrl, bracket and extended leader maps dispatch", async () =>
       "<C-p>",
       "<C-c>",
       "<leader>bx",
-      "<leader>sk",
-      "<leader>sh",
     ],
   );
   assert.deepEqual(

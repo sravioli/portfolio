@@ -11,6 +11,7 @@ internal enum KeyAction
     ScrollBottom,
     FocusCommand,
     FocusExplorer,
+    CloseExplorer,
     OpenFileFinder,
     CloseCommand,
     HalfPageUp,
@@ -71,13 +72,14 @@ internal sealed class KeymapHandler
 
         switch (key)
         {
+            case "<leader>e" when state.IsExplorerOpen && explorerFocused:
+                state.IsExplorerOpen = false;
+                return KeyAction.CloseExplorer;
             case "<leader>e" or "<C-h>":
+                state.IsExplorerOpen = true;
                 return KeyAction.FocusExplorer;
             case "<leader>ff" or "<C-p>":
                 return KeyAction.OpenFileFinder;
-            case "<leader>sk" or "<leader>sh":
-                state.IsHelpOpen = true;
-                return KeyAction.Changed;
             case "<C-d>":
                 return state.IsReading ? KeyAction.HalfPageDown : KeyAction.Ignored;
             case "<C-u>":
@@ -148,6 +150,7 @@ internal sealed class KeymapHandler
                 return KeyAction.ScrollTop;
             }
 
+            state.IsExplorerOpen = true;
             state.SelectEdge(last: false);
             return KeyAction.Changed;
         }
@@ -159,6 +162,7 @@ internal sealed class KeymapHandler
                 return KeyAction.ScrollBottom;
             }
 
+            state.IsExplorerOpen = true;
             state.SelectEdge(last: true);
             return KeyAction.Changed;
         }
@@ -170,6 +174,7 @@ internal sealed class KeymapHandler
                 return KeyAction.ScrollDown;
             }
 
+            state.IsExplorerOpen = true;
             state.MoveSelection(1);
             return KeyAction.Changed;
         }
@@ -181,6 +186,7 @@ internal sealed class KeymapHandler
                 return KeyAction.ScrollUp;
             }
 
+            state.IsExplorerOpen = true;
             state.MoveSelection(-1);
             return KeyAction.Changed;
         }

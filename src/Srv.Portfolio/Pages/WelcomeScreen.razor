@@ -5,7 +5,7 @@
         <a href="https://github.com/sravioli">github.com/sravioli</a>
     </p>
 
-    <div class="welcome-hints">
+    <div class="welcome-hints keyboard-hints">
         <button type="button" @onclick="OnOpenReadme">
             <span>open <span class="welcome-key">README.md</span></span>
             <span>to get to know me</span>
@@ -32,7 +32,27 @@
         </button>
     </div>
 
+    <div class="welcome-hints touch-hints">
+        <button type="button" @onclick="OnOpenReadme">
+            <span>read <span class="welcome-key">README.md</span></span>
+            <span>to get to know me</span>
+        </button>
+        <button type="button" @onclick="OnBrowseFiles">
+            <span>tap <span class="welcome-key welcome-icon" aria-hidden="true">&#xf0645;</span><span class="visually-hidden">Files</span> top left</span>
+            <span>to browse projects</span>
+        </button>
+        <button type="button" @onclick="OnFindFiles">
+            <span>tap <span class="welcome-key welcome-icon" aria-hidden="true">&#xf002;</span><span class="visually-hidden">Find</span> top right</span>
+            <span>to search for a project</span>
+        </button>
+        <button type="button" @onclick="OnOpenHelp">
+            <span>tap <span class="welcome-key">?</span> top right</span>
+            <span>to see what else you can do</span>
+        </button>
+    </div>
+
     <p class="welcome-footer">Mouse and touch work here, too.</p>
+    <p class="welcome-footer touch-footer">Or tap any line above.</p>
 </section>
 
 @code {
@@ -40,6 +60,7 @@
     [Parameter] public EventCallback OnOpenSelected { get; set; }
     [Parameter] public EventCallback OnOpenHelp { get; set; }
     [Parameter] public EventCallback OnFindFiles { get; set; }
+    [Parameter] public EventCallback OnBrowseFiles { get; set; }
     [Parameter] public string LeaderLabel { get; set; } = "Space";
     [Parameter] public bool DevNotation { get; set; } = true;
 }

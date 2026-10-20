@@ -3,13 +3,21 @@
 @inject ReadmeService Readmes
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject IBrowserStorage Storage
 
 <PageTitle>Simone's Portfolio</PageTitle>
 
 <div class="skip-link"><a href="#portfolio-main">Skip to content</a></div>
-<div class="portfolio-shell" data-reading="@State.IsReading.ToString().ToLowerInvariant()">
+<div class="portfolio-shell" data-reading="@State.IsReading.ToString().ToLowerInvariant()"
+     data-explorer="@ExplorerAttribute">
     <header class="tabline">
-        <div class="explorer-label">File Explorer</div>
+        <button type="button" class="explorer-label" @onclick="ToggleExplorer"
+                aria-controls="portfolio-explorer" aria-expanded="@(State.IsExplorerOpen ? "true" : "false")"
+                title="Toggle the explorer (<leader>e)">
+            <span class="explorer-toggle-icon" aria-hidden="true">&#xf0645;</span>
+            <span class="explorer-label-text">File Explorer</span>
+            <span class="visually-hidden">@(State.IsExplorerOpen ? "Hide" : "Show") the file explorer</span>
+        </button>
         <div class="active-tab">
             <span class="tab-icon" aria-hidden="true">&#xf48a;</span>
             <span class="tab-title">@(State.IsReading ? (State.CurrentDocument?.IsRoot == true ? "README" : State.CurrentDocument?.Name) : "Explorer")</span>
@@ -17,14 +25,15 @@
         </div>
         <div class="tab-actions">
             <button type="button" @onclick="GoParent" aria-label="Back">Back</button>
-            <button type="button" @onclick="ToggleKeyboard" aria-pressed="@State.KeyboardEnabled" title="Toggle keymaps (:set keys / :set nokeys)">Keys: @(State.KeyboardEnabled ? "on" : "off")</button>
+            <button type="button" class="keys-toggle" @onclick="ToggleKeyboard" aria-pressed="@State.KeyboardEnabled" title="Toggle keymaps (:set keys / :set nokeys)">Keys: @(State.KeyboardEnabled ? "on" : "off")</button>
             <button type="button" @onclick="OpenFileFinder" aria-label="Find files" title="Find files (<leader>ff)">&#xf002;</button>
-            <button type="button" @onclick="OpenHelp" aria-label="Keyboard help">?</button>
+            <button type="button" @onclick="OpenHelp" aria-label="Help">?</button>
         </div>
     </header>
 
     <div class="workspace">
-        <aside class="explorer" aria-label="File Explorer">
+        <div class="explorer-backdrop" aria-hidden="true" @onclick="CloseExplorer"></div>
+        <aside id="portfolio-explorer" class="explorer" aria-label="File Explorer">
             <div class="explorer-path">/home/@PortfolioCatalog.RootEntry.Name/</div>
             <nav class="entry-list" aria-label="Project files" @ref="_explorer">
                 <ExplorerTree Entries="State.Entries" SelectedIndex="State.SelectedIndex"
@@ -62,7 +71,7 @@
                     <WelcomeScreen OnOpenReadme="@(() => OnInternalRepositoryLink(string.Empty))"
                                    OnOpenSelected="OpenSelected"
                                    LeaderLabel="@State.LeaderLabel" DevNotation="State.DevNotation" OnFindFiles="OpenFileFinder"
-                                   OnOpenHelp="OpenHelp" />
+                                   OnOpenHelp="OpenHelp" OnBrowseFiles="OpenExplorer" />
                 }
                 else if (State.IsReading && _loadError is not null)
                 {
@@ -118,9 +127,9 @@
         @if (State.IsReading)
         {
             <div class="status-left">
-                <span class="mode-block">@(State.IsCommandMode ? "COMMAND" : "NORMAL")</span>
+                <span class="mode-block"><span class="status-full">@(State.IsCommandMode ? "COMMAND" : "NORMAL")</span><span class="status-short" aria-hidden="true">@(State.IsCommandMode ? "C" : "N")</span></span>
                 <span class="power-arrow blue-arrow" aria-hidden="true"></span>
-                <span class="cwd-segment"><span aria-hidden="true">&#xf024b;</span> <i>/home/@string.Join("/", PortfolioCatalog.GetPath(State.CurrentFolder))</i></span>
+                <span class="cwd-segment"><span aria-hidden="true">&#xf024b;</span><i class="cwd-path cwd-full"><span class="cwd-head">@FullPath.Head</span><span class="cwd-tail">@FullPath.Tail</span></i><i class="cwd-path cwd-short" aria-hidden="true"><span class="cwd-head">@ShortPath.Head</span><span class="cwd-tail">@ShortPath.Tail</span></i></span>
                 <span class="power-arrow surface-arrow" aria-hidden="true"></span>
                 <span class="file-segment"><span aria-hidden="true">&#xf48a;</span> README.md</span>
                 <span class="power-arrow file-arrow" aria-hidden="true"></span>
@@ -131,7 +140,7 @@
                 <span class="encoding">utf-8</span>
                 <span class="file-format" title="Unix line endings" aria-label="Unix line endings">&#xe712;</span>
                 <span class="filetype">@(State.IsRawView ? "TEXT" : "MARKDOWN")</span>
-                <span class="position-block">@($"{_positionLine:000}/{_totalLines:000}:{_positionColumn:00} {_scrollPosition}") <span aria-hidden="true">@_readmeScrollGlyph</span></span>
+                <span class="position-block"><span class="status-full">@($"{_positionLine:000}/{_totalLines:000}:{_positionColumn:00} ")</span>@_scrollPosition <span class="scroll-thumb" aria-hidden="true" style="@ScrollThumbStyle(_readmeScroll)"></span></span>
             </div>
         }
         else
@@ -142,7 +151,7 @@
             </div>
             <div class="status-right">
                 <span class="tree-count"><span aria-hidden="true">&#xf4a5;</span> 0b</span>
-                <span class="position-block">@($"{State.SelectedIndex + 1:000}/{State.Entries.Count:000}:01 All {_scrollGlyph}")</span>
+                <span class="position-block">@($"{State.SelectedIndex + 1:000}/{State.Entries.Count:000}:01 All ")<span class="scroll-thumb" aria-hidden="true" style="@ScrollThumbStyle(_explorerScroll)"></span></span>
             </div>
         }
     </footer>
@@ -151,20 +160,45 @@
         <label for="command-input" class="visually-hidden">Command</label>
         <input id="command-input" @bind="State.CommandText" @bind:event="oninput" @onkeydown="HandleCommandKey"
                placeholder="Type a command…" autocomplete="off" spellcheck="false" />
-        <button type="button" class="shortcuts-link" @onclick="OpenHelp">Shortcuts</button>
     </form>
 </div>
 
 <dialog class="help-dialog" @ref="_helpDialog" aria-labelledby="help-title"
         @oncancel="CloseHelp" @oncancel:preventDefault>
     <div class="help-heading">
-        <h2 id="help-title">Keyboard shortcuts</h2>
+        <h2 id="help-title"><span class="input-keys">Keyboard shortcuts</span><span class="input-touch">Help</span></h2>
         <div class="help-actions">
             <button type="button" class="help-dev-toggle" @onclick="ToggleDevNotation" aria-pressed="@(State.DevNotation ? "true" : "false")"
                     title="Key notation: Vim (<leader>ff) or plain (Space then f f). :set dev / :set nodev">Notation: @(State.DevNotation ? "Vim" : "Plain")</button>
             <button type="button" @onclick="CloseHelp" aria-label="Close help">×</button>
         </div>
     </div>
+    <div class="help-touch">
+        <section class="help-group">
+            <h3>Touch</h3>
+            <dl>
+                <dt><span class="help-icon" aria-hidden="true">&#xf0645;</span> top left</dt><dd>Show or hide the files</dd>
+                <dt>Tap a file or folder</dt><dd>Open the file, or expand the folder</dd>
+                <dt>Back</dt><dd>Go up one level</dd>
+                <dt><span class="help-icon" aria-hidden="true">&#xf002;</span> top right</dt><dd>Find a file by name</dd>
+                <dt>Tap a breadcrumb</dt><dd>Jump to another folder or heading</dd>
+                <dt>Tap an image</dt><dd>Full-screen preview</dd>
+                <dt><span class="help-icon" aria-hidden="true">&#xf05b6;</span> on code</dt><dd>Wrap long lines</dd>
+            </dl>
+        </section>
+        <section class="help-group">
+            <h3>Commands</h3>
+            <p class="help-note">Type them in the command line at the bottom.</p>
+            <dl>
+                <dt><kbd>↑</kbd><kbd>↓</kbd></dt><dd>Browse command history</dd>
+                <dt><kbd>:e</kbd></dt><dd>Reload the README</dd>
+                <dt><kbd>:q</kbd></dt><dd>Return to the listing</dd>
+                <dt><kbd>:NvimTreeToggle</kbd></dt><dd>Show or hide the files</dd>
+            </dl>
+        </section>
+    </div>
+    <details class="help-keys">
+        <summary>Keyboard shortcuts</summary>
     <p class="help-hint"><kbd>Esc</kbd> or <kbd>q</kbd> closes</p>
     <div class="help-groups">
         <div class="help-column">
@@ -176,7 +210,7 @@
                         <dt><kbd>&lt;leader&gt;</kbd></dt><dd>@State.LeaderLabel</dd>
                     }
                     <dt><kbd>:</kbd></dt><dd>Command line (always works)</dd>
-                    <dt><kbd>?</kbd><kbd>:h</kbd><LeaderKeys Keys="sh" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /><LeaderKeys Keys="sk" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /></dt><dd>Open this help</dd>
+                    <dt><kbd>?</kbd><kbd>:h</kbd></dt><dd>Open this help</dd>
                     <dt><kbd>@Ctrl('h')</kbd><LeaderKeys Keys="e" Dev="State.DevNotation" LeaderLabel="@State.LeaderLabel" /></dt><dd>Focus the explorer</dd>
                     <dt><kbd>@Ctrl('l')</kbd></dt><dd>Focus the README</dd>
                     <dt><kbd>Tab</kbd></dt><dd>Browser focus navigation</dd>
@@ -257,6 +291,7 @@
             </section>
         </div>
     </div>
+    </details>
 </dialog>
 
 @if (_fileFinderOpen)
@@ -287,7 +322,82 @@
     private string _scrollPosition = "All";
     private HeadingBreadcrumb[] _headingBreadcrumbs = [];
     private bool _fileFinderOpen;
+    private const string ExplorerStorageKey = "portfolio.explorer";
+    private bool _explorerReady;
+    private bool _narrowLayout;
+    private bool _desktopExplorerOpen = true;
+    private bool _syncedExplorerOpen;
 
+    private string ExplorerAttribute =>
+        !_explorerReady ? "pending" : State.IsExplorerOpen ? "open" : "closed";
+
+    private (string Head, string Tail) FullPath => SplitPath("/home", PortfolioCatalog.GetPath(State.CurrentFolder));
+
+    private (string Head, string Tail) ShortPath =>
+        SplitPath("~", PortfolioCatalog.GetPath(State.CurrentFolder).Skip(1), abbreviate: true);
+
+    // The head is what gets ellipsized, so the current folder name always stays visible.
+    // Abbreviated paths keep one letter per parent folder, like fish's prompt_pwd.
+    private static (string Head, string Tail) SplitPath(string root, IEnumerable<string> segments, bool abbreviate = false)
+    {
+        var path = segments.Prepend(root).ToList();
+        if (path.Count == 1)
+            return (string.Empty, root);
+
+        var parents = path[..^1].Select((segment, i) => abbreviate && i > 0 ? segment[..1] : segment);
+        return (string.Join("/", parents) + "/", path[^1]);
+    }
+
+    private void ToggleExplorer() => State.IsExplorerOpen = !State.IsExplorerOpen;
+    private void OpenExplorer() => State.IsExplorerOpen = true;
+    private void CloseExplorer() => State.IsExplorerOpen = false;
+
+    private async Task InitializeExplorerAsync()
+    {
+        _narrowLayout = await (_interop?.InitializeLayoutAsync() ?? ValueTask.FromResult(false));
+        _desktopExplorerOpen = await Storage.GetAsync(ExplorerStorageKey) != "closed";
+        State.IsExplorerOpen = !_narrowLayout && _desktopExplorerOpen;
+        _syncedExplorerOpen = State.IsExplorerOpen;
+        _explorerReady = true;
+        StateHasChanged();
+    }
+
+    private async Task SyncExplorerAsync()
+    {
+        if (!_explorerReady || _syncedExplorerOpen == State.IsExplorerOpen)
+        {
+            return;
+        }
+
+        _syncedExplorerOpen = State.IsExplorerOpen;
+        if (_narrowLayout)
+        {
+            await (_interop?.SetDrawerOpenAsync(State.IsExplorerOpen) ?? ValueTask.CompletedTask);
+            return;
+        }
+
+        _desktopExplorerOpen = State.IsExplorerOpen;
+        await Storage.SetAsync(ExplorerStorageKey, State.IsExplorerOpen ? "open" : "closed");
+    }
+
+    [JSInvokable]
+    public Task OnLayoutChanged(bool narrow) =>
+        InvokeAsync(() =>
+        {
+            _narrowLayout = narrow;
+            State.IsExplorerOpen = !narrow && _desktopExplorerOpen;
+            _syncedExplorerOpen = State.IsExplorerOpen;
+            StateHasChanged();
+        });
+
+    [JSInvokable]
+    public Task OnDrawerDismissed() =>
+        InvokeAsync(() =>
+        {
+            State.IsExplorerOpen = false;
+            _syncedExplorerOpen = false;
+            StateHasChanged();
+        });
     private static string FormatFileSize(int bytes)
     {
         if (bytes < 1024)
@@ -307,15 +417,14 @@
         return size.ToString("G2", System.Globalization.CultureInfo.InvariantCulture) + units[unit] + "b";
     }
 
-    private string _readmeScrollGlyph
+    // Scroll fraction (0 = top, 1 = bottom) shown by the statusline thumb; follows the Top/Bot/N% label.
+    private double _readmeScroll => _scrollPosition switch
     {
-        get
-        {
-            var glyphs = new[] { "▔", "▀", "▄", "▁" };
-            var index = Math.Clamp((_positionLine - 1) * glyphs.Length / Math.Max(1, _totalLines), 0, glyphs.Length - 1);
-            return glyphs[index];
-        }
-    }
+        "Bot" => 1,
+        { } percent when percent.EndsWith('%') &&
+            int.TryParse(percent[..^1], out var value) => Math.Clamp(value / 100.0, 0, 1),
+        _ => 0,
+    };
 
     private void OpenFileFinder() => _fileFinderOpen = true;
     private void CloseFileFinder() => _fileFinderOpen = false;
@@ -327,15 +436,11 @@
         await (_interop?.FocusPreviewAsync() ?? ValueTask.CompletedTask);
     }
 
-    private string _scrollGlyph
-    {
-        get
-        {
-            var glyphs = new[] { "▔", "▀", "▄", "▁" };
-            var relative = State.Entries.Count < 2 ? 0 : State.SelectedIndex * (glyphs.Length - 1) / (State.Entries.Count - 1);
-            return glyphs[relative];
-        }
-    }
+    private double _explorerScroll =>
+        State.Entries.Count < 2 ? 0 : (double)State.SelectedIndex / (State.Entries.Count - 1);
+
+    private static string ScrollThumbStyle(double fraction) =>
+        "--scroll: " + Math.Clamp(fraction, 0, 1).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -344,7 +449,10 @@
             _interop = new PortfolioInterop(JS);
             _dotNetReference = DotNetObjectReference.Create(this);
             await _interop.InitializeAsync(_dotNetReference, State.KeyboardEnabled, State.Leader);
+            await InitializeExplorerAsync();
         }
+
+        await SyncExplorerAsync();
 
         if (_helpDialogOpen != State.IsHelpOpen)
         {
@@ -423,6 +531,11 @@
     private async Task LoadReadmeAsync(PortfolioEntry entry)
     {
         CancelReadmeLoad();
+        if (_narrowLayout)
+        {
+            State.IsExplorerOpen = false;
+        }
+
         var cancellation = new CancellationTokenSource();
         _loadCancellation = cancellation;
         _loading = true;
@@ -554,6 +667,10 @@
                 await InvokeAsync(StateHasChanged);
                 await (_interop?.FocusExplorerAsync(_explorer) ?? ValueTask.CompletedTask);
                 break;
+            case KeyAction.CloseExplorer:
+                await InvokeAsync(StateHasChanged);
+                await (_interop?.FocusPreviewAsync() ?? ValueTask.CompletedTask);
+                return true;
             case KeyAction.OpenSelected:
                 if (State.IsReading && State.CurrentDocument is not null)
                 {
