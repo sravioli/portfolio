@@ -58,19 +58,9 @@ button, input, textarea, select, pre, code {
   animation: boot-fade 200ms ease-out 600ms forwards;
 }
 
-#app > .portfolio-shell {
-  animation: boot-fade 160ms ease-out;
-}
-
 @keyframes boot-fade {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #app > .portfolio-shell {
-    animation: none;
-  }
 }
 
 button, input {
