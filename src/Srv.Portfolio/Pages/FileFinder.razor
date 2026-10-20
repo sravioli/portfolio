@@ -1,0 +1,71 @@
+@implements IAsyncDisposable
+@inject ReadmeService Readmes
+@inject IJSRuntime JS
+
+<dialog class="file-finder" @ref="_dialog" aria-label="Find files"
+        @onkeydown="HandleKey" @oncancel="Close" @oncancel:preventDefault>
+    <div class="finder-layout">
+        <fieldset class="finder-results">
+            <legend>Results</legend>
+            <div id="finder-result-list" class="finder-list" role="listbox" aria-label="Matching files">
+                @for (var index = 0; index < _results.Count; index++)
+                {
+                    var resultIndex = index;
+                    var result = _results[index];
+                    <button @key="result.Path" type="button" id="@($"finder-result-{index}")"
+                            class="finder-result @(index == _selectedIndex ? "selected" : "")"
+                            role="option" aria-selected="@(index == _selectedIndex ? "true" : "false")"
+                            tabindex="-1" @onclick="() => SelectResult(resultIndex)"
+                            @ondblclick="OpenSelected" title="@result.Path">
+                        <span class="finder-pointer" aria-hidden="true">@(index == _selectedIndex ? "›" : " ")</span>
+                        <span class="finder-file-icon" aria-hidden="true">&#xf48a;</span>
+                        <span class="finder-path">@for (var character = 0; character < result.Path.Length; character++)
+                            {<span class="@(result.Matches.Contains(character) ? "finder-match" : null)">@result.Path[character]</span>}</span>
+                    </button>
+                }
+                @if (_results.Count == 0)
+                {
+                    <p class="finder-empty">No matching files.</p>
+                }
+            </div>
+        </fieldset>
+        <fieldset class="finder-preview">
+            <legend>README Preview</legend>
+            @if (_loading)
+            {
+                <p role="status">Loading preview…</p>
+            }
+            else if (_error is not null)
+            {
+                <div role="alert">
+                    <p>Could not load preview: @_error</p>
+                    <button type="button" class="finder-retry" @onclick="LoadPreview">Retry</button>
+                </div>
+            }
+            else if (_preview is not null)
+            {
+                <pre><code>@_preview</code></pre>
+            }
+            else
+            {
+                <p class="finder-empty">Select a file to preview it.</p>
+            }
+        </fieldset>
+        <fieldset class="finder-prompt">
+            <legend>Find Files</legend>
+            <div>
+                <span aria-hidden="true">&#xf002;</span>
+                <input @ref="_input" value="@_query" @oninput="Filter"
+                       role="combobox" aria-expanded="true" aria-autocomplete="list"
+                       aria-label="Find files" aria-controls="finder-result-list"
+                       aria-activedescendant="@(_results.Count > 0 ? $"finder-result-{_selectedIndex}" : null)"
+                       autocomplete="off" spellcheck="false" autofocus />
+                <span class="finder-count" aria-live="polite">@_results.Count / @_totalCount</span>
+            </div>
+        </fieldset>
+    </div>
+    <div class="finder-footer">
+        <span>↑/↓ select · Enter open · Esc close</span>
+        <button type="button" @onclick="Close" aria-label="Close file search">×</button>
+    </div>
+</dialog>
