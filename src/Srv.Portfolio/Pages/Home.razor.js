@@ -367,7 +367,7 @@ async function onClick(event) {
     const target = event.target instanceof Element ? event.target : null;
     if (whichKey.isOpen()) resetLeader();
     if (pick.isActive()) pick.cancel();
-    const crumb = target?.closest(".breadcrumb [data-pick-segment]:not([data-readme-heading])");
+    const crumb = target?.closest(".breadcrumb [data-pick-segment]");
     if (crumb) {
         event.preventDefault();
         await pick.openSegment(crumb);
