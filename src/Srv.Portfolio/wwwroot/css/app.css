@@ -1,5 +1,19 @@
+@font-face {
+  font-family: "Fira Code";
+  src: url("../fonts/FiraCode-VF.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Symbols Nerd Font";
+  src: url("../fonts/SymbolsNerdFont-Regular.woff2") format("woff2");
+  font-display: swap;
+  unicode-range: U+E000-F8FF, U+F0000-FFFFD;
+}
+
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: "Fira Code", "Symbols Nerd Font", monospace;
 }
 
 h1:focus {
