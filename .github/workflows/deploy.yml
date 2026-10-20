@@ -25,10 +25,16 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v6
       - name: Publish portfolio
         run: dotnet publish src/Srv.Portfolio -c Release -o out
       - name: Prepare GitHub Pages assets
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: |
+          sed -i "s|<base href=\"/\" />|<base href=\"${PAGES_BASE_PATH}/\" />|" out/wwwroot/index.html
           touch out/wwwroot/.nojekyll
           printf 'sravio.li\n' > out/wwwroot/CNAME
           cp out/wwwroot/index.html out/wwwroot/404.html
