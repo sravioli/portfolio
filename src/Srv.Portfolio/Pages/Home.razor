@@ -386,9 +386,7 @@
     {
         CancelReadmeLoad();
         State.GoToParent();
-        _documentSource = null;
-        _rawLines = [];
-        _renderedDocument = string.Empty;
+        ClearDocumentContent();
         _loadError = null;
         await InvokeAsync(StateHasChanged);
     }
@@ -397,9 +395,7 @@
     {
         CancelReadmeLoad();
         State.CloseDocument();
-        _documentSource = null;
-        _rawLines = [];
-        _renderedDocument = string.Empty;
+        ClearDocumentContent();
         _loadError = null;
         _loading = false;
         _lastHighlightedSource = null;
@@ -408,6 +404,13 @@
         _totalLines = 1;
         _scrollPosition = "All";
         await (_interop?.FocusExplorerAsync(_explorer) ?? ValueTask.CompletedTask);
+    }
+
+    private void ClearDocumentContent()
+    {
+        _documentSource = null;
+        _rawLines = [];
+        _renderedDocument = string.Empty;
     }
 
     private async Task CopyDocumentAsync()
@@ -501,10 +504,7 @@
 
     private async Task ToggleKeyboard()
     {
-        State.KeyboardEnabled = !State.KeyboardEnabled;
-        State.Message = State.KeyboardEnabled
-            ? "Keymaps on."
-            : "Keymaps off. Type :set keys to turn them back on.";
+        State.SetKeyboardEnabled(!State.KeyboardEnabled);
         await (_interop?.SetKeyboardEnabledAsync(State.KeyboardEnabled) ?? ValueTask.CompletedTask);
         await InvokeAsync(StateHasChanged);
     }
@@ -516,8 +516,7 @@
     {
         if (args.Key == "Escape")
         {
-            State.CommandText = string.Empty;
-            State.IsCommandMode = false;
+            State.EndCommand();
             await (_interop?.FocusPreviewAsync() ?? ValueTask.CompletedTask);
         }
     }
@@ -559,9 +558,7 @@
                 else
                 {
                     CancelReadmeLoad();
-                    _documentSource = null;
-                    _rawLines = [];
-                    _renderedDocument = string.Empty;
+                    ClearDocumentContent();
                 }
                 break;
             case KeyAction.ScrollUp or KeyAction.ScrollDown or KeyAction.ScrollTop or KeyAction.ScrollBottom or
@@ -692,9 +689,7 @@
             }
             else
             {
-                _documentSource = null;
-                _rawLines = [];
-                _renderedDocument = string.Empty;
+                ClearDocumentContent();
                 await InvokeAsync(StateHasChanged);
             }
         });

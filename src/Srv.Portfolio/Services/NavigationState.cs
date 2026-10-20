@@ -32,6 +32,30 @@ public sealed class NavigationState
 
     public ExplorerItem SelectedEntry => Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
 
+    /// <summary>Enters command mode with the command prefix ready for input.</summary>
+    public void BeginCommand()
+    {
+        IsCommandMode = true;
+        CommandText = ":";
+    }
+
+    /// <summary>Leaves command mode and clears the command input.</summary>
+    public void EndCommand()
+    {
+        IsCommandMode = false;
+        CommandText = string.Empty;
+    }
+
+    /// <summary>Updates keyboard availability and its user-facing feedback.</summary>
+    /// <param name="enabled">Whether the portfolio keymaps are enabled.</param>
+    public void SetKeyboardEnabled(bool enabled)
+    {
+        KeyboardEnabled = enabled;
+        Message = enabled
+            ? "Keymaps on."
+            : "Keymaps off. Type :set keys to turn them back on.";
+    }
+
     public void SelectIndex(int index)
     {
         SelectedIndex = Math.Clamp(index, 0, Entries.Count - 1);
@@ -58,21 +82,10 @@ public sealed class NavigationState
                 GoToParent();
                 return null;
             case ExplorerItemKind.Readme:
-                CurrentFolder = item.Entry!;
-                IsWelcome = false;
-                IsReading = true;
-                CurrentDocument = item.Entry;
-                IsRawView = false;
-                Message = null;
-                return CurrentDocument;
             case ExplorerItemKind.ProjectFile:
-                IsWelcome = false;
                 CurrentFolder = item.Entry!;
-                CurrentDocument = item.Entry;
-                IsReading = true;
-                IsRawView = false;
-                Message = null;
-                return CurrentDocument;
+                IsWelcome = false;
+                return OpenDocument(item.Entry!);
             case ExplorerItemKind.Folder:
                 if (!_expandedFolders.Add(item.Entry!.Repository))
                 {
@@ -108,8 +121,7 @@ public sealed class NavigationState
         IsReading = false;
         IsWelcome = true;
         IsRawView = false;
-        IsCommandMode = false;
-        CommandText = string.Empty;
+        EndCommand();
         Message = null;
     }
 
@@ -143,6 +155,11 @@ public sealed class NavigationState
         CurrentFolder = entry;
         IsWelcome = false;
         SelectDocument(entry);
+        return OpenDocument(entry);
+    }
+
+    private PortfolioEntry OpenDocument(PortfolioEntry entry)
+    {
         IsReading = true;
         CurrentDocument = entry;
         IsRawView = false;

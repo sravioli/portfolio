@@ -22,8 +22,7 @@ public sealed class CommandHandler
         ArgumentNullException.ThrowIfNull(commandText);
 
         var command = commandText.TrimStart(':').Trim();
-        state.CommandText = string.Empty;
-        state.IsCommandMode = false;
+        state.EndCommand();
         var leaderAssignment = Regex.Match(
             command,
             """^(?:let\s+(?:g:)?mapleader|lua\s+vim\.g\.mapleader)\s*=\s*(["'])(.*?)\1$""",
@@ -83,10 +82,7 @@ public sealed class CommandHandler
                 return CommandAction.SetDevNotation;
             }
 
-            state.KeyboardEnabled = value;
-            state.Message = state.KeyboardEnabled
-                ? "Keymaps on."
-                : "Keymaps off. Type :set keys to turn them back on.";
+            state.SetKeyboardEnabled(value);
             return CommandAction.SetKeyboard;
         }
 

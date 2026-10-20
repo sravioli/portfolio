@@ -44,8 +44,7 @@ public sealed class KeymapHandler
             _waitingForSecondG = false;
             if (key == ":" && !state.IsHelpOpen)
             {
-                state.IsCommandMode = true;
-                state.CommandText = ":";
+                state.BeginCommand();
                 return KeyAction.FocusCommand;
             }
 
@@ -128,8 +127,7 @@ public sealed class KeymapHandler
 
         if (key == "Escape" && state.IsCommandMode)
         {
-            state.IsCommandMode = false;
-            state.CommandText = string.Empty;
+            state.EndCommand();
             return KeyAction.CloseCommand;
         }
 
@@ -211,8 +209,7 @@ public sealed class KeymapHandler
 
         if (key == ":")
         {
-            state.IsCommandMode = true;
-            state.CommandText = ":";
+            state.BeginCommand();
             return KeyAction.FocusCommand;
         }
 
