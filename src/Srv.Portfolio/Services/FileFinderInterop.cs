@@ -3,7 +3,7 @@ using Microsoft.JSInterop;
 
 namespace Srv.Portfolio.Services;
 
-public sealed class FileFinderInterop(IJSRuntime jsRuntime) : IAsyncDisposable
+internal sealed class FileFinderInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 {
     private const string ModulePath = "./Pages/FileFinder.razor.js";
     private const string OpenMethod = "open";
@@ -12,8 +12,10 @@ public sealed class FileFinderInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 
     public async ValueTask OpenAsync(ElementReference dialog)
     {
-        _module = await jsRuntime.InvokeAsync<IJSObjectReference>("import", ModulePath);
-        await _module.InvokeVoidAsync(OpenMethod, dialog);
+        _module = await jsRuntime
+            .InvokeAsync<IJSObjectReference>("import", ModulePath)
+            .ConfigureAwait(true);
+        await _module.InvokeVoidAsync(OpenMethod, dialog).ConfigureAwait(true);
     }
 
     public ValueTask CloseAsync(bool restoreFocus) =>

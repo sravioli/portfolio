@@ -1,89 +1,100 @@
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class NeovimKeymapTests
+[TestFixture]
+internal sealed class NeovimKeymapTests
 {
-    [Theory]
-    [InlineData("<C-d>", KeyAction.HalfPageDown)]
-    [InlineData("<C-u>", KeyAction.HalfPageUp)]
-    [InlineData("]]", KeyAction.NextHeading)]
-    [InlineData("[[", KeyAction.PreviousHeading)]
-    [InlineData("<C-l>", KeyAction.FocusPreview)]
-    [InlineData("<C-h>", KeyAction.FocusExplorer)]
-    [InlineData("<C-p>", KeyAction.OpenFileFinder)]
-    [InlineData("<leader>bx", KeyAction.CloseDocument)]
-    [InlineData("<C-c>", KeyAction.CopyDocument)]
-    public void Handle_ReadingMaps_ReturnExpectedAction(string key, KeyAction expected)
+    [TestCase("<C-d>", KeyAction.HalfPageDown)]
+    [TestCase("<C-u>", KeyAction.HalfPageUp)]
+    [TestCase("]]", KeyAction.NextHeading)]
+    [TestCase("[[", KeyAction.PreviousHeading)]
+    [TestCase("<C-l>", KeyAction.FocusPreview)]
+    [TestCase("<C-h>", KeyAction.FocusExplorer)]
+    [TestCase("<C-p>", KeyAction.OpenFileFinder)]
+    [TestCase("<leader>bx", KeyAction.CloseDocument)]
+    [TestCase("<C-c>", KeyAction.CopyDocument)]
+    public void HandleReadingMapsReturnExpectedAction(string key, KeyAction expected)
     {
         var state = new NavigationState();
         state.NavigateTo("memo.wz");
 
-        Assert.Equal(expected, new KeymapHandler().Handle(state, key));
+        Assert.That(new KeymapHandler().Handle(state, key), Is.EqualTo(expected));
     }
 
-    [Theory]
-    [InlineData("<C-d>")]
-    [InlineData("<C-u>")]
-    [InlineData("]]")]
-    [InlineData("[[")]
-    [InlineData("<C-l>")]
-    [InlineData("<leader>bx")]
-    [InlineData("<C-c>")]
-    public void Handle_ReadingOnlyMapsOnSplash_AreIgnored(string key)
+    [TestCase("<C-d>")]
+    [TestCase("<C-u>")]
+    [TestCase("]]")]
+    [TestCase("[[")]
+    [TestCase("<C-l>")]
+    [TestCase("<leader>bx")]
+    [TestCase("<C-c>")]
+    public void HandleReadingOnlyMapsOnSplashAreIgnored(string key)
     {
-        Assert.Equal(KeyAction.Ignored, new KeymapHandler().Handle(new NavigationState(), key));
+        Assert.That(
+            new KeymapHandler().Handle(new NavigationState(), key),
+            Is.EqualTo(KeyAction.Ignored)
+        );
     }
 
-    [Theory]
-    [InlineData("h", KeyAction.CursorLeft)]
-    [InlineData("l", KeyAction.CursorRight)]
-    [InlineData("w", KeyAction.WordForward)]
-    [InlineData("b", KeyAction.WordBackward)]
-    [InlineData("e", KeyAction.WordEnd)]
-    [InlineData("0", KeyAction.LineStart)]
-    [InlineData("$", KeyAction.LineEnd)]
-    [InlineData("Enter", KeyAction.OpenLink)]
-    [InlineData("<C-o>", KeyAction.JumpBack)]
-    [InlineData("<C-i>", KeyAction.JumpForward)]
-    public void Handle_CursorMapsInPreview_ReturnCursorAction(string key, KeyAction expected)
+    [TestCase("h", KeyAction.CursorLeft)]
+    [TestCase("l", KeyAction.CursorRight)]
+    [TestCase("w", KeyAction.WordForward)]
+    [TestCase("b", KeyAction.WordBackward)]
+    [TestCase("e", KeyAction.WordEnd)]
+    [TestCase("0", KeyAction.LineStart)]
+    [TestCase("$", KeyAction.LineEnd)]
+    [TestCase("Enter", KeyAction.OpenLink)]
+    [TestCase("<C-o>", KeyAction.JumpBack)]
+    [TestCase("<C-i>", KeyAction.JumpForward)]
+    public void HandleCursorMapsInPreviewReturnCursorAction(string key, KeyAction expected)
     {
         var state = new NavigationState();
         state.NavigateTo("memo.wz");
 
-        Assert.Equal(expected, new KeymapHandler().Handle(state, key));
-        Assert.True(state.IsReading);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(new KeymapHandler().Handle(state, key), Is.EqualTo(expected));
+            Assert.That(state.IsReading, Is.True);
+        }
     }
 
-    [Fact]
-    public void Handle_GxInPreview_FollowsLink()
+    [Test]
+    public void HandleGxInPreviewFollowsLink()
     {
         var state = new NavigationState();
         state.NavigateTo("memo.wz");
         var keymap = new KeymapHandler();
 
-        Assert.Equal(KeyAction.Changed, keymap.Handle(state, "g"));
-        Assert.Equal(KeyAction.FollowLink, keymap.Handle(state, "x"));
-        Assert.Equal(KeyAction.Ignored, keymap.Handle(state, "x"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(keymap.Handle(state, "g"), Is.EqualTo(KeyAction.Changed));
+            Assert.That(keymap.Handle(state, "x"), Is.EqualTo(KeyAction.FollowLink));
+        }
+        Assert.That(keymap.Handle(state, "x"), Is.EqualTo(KeyAction.Ignored));
     }
 
-    [Theory]
-    [InlineData("w")]
-    [InlineData("<C-o>")]
-    [InlineData("$")]
-    public void Handle_CursorMapsOnSplash_AreIgnored(string key)
+    [TestCase("w")]
+    [TestCase("<C-o>")]
+    [TestCase("$")]
+    public void HandleCursorMapsOnSplashAreIgnored(string key)
     {
-        Assert.Equal(KeyAction.Ignored, new KeymapHandler().Handle(new NavigationState(), key));
+        Assert.That(
+            new KeymapHandler().Handle(new NavigationState(), key),
+            Is.EqualTo(KeyAction.Ignored)
+        );
     }
 
-    [Theory]
-    [InlineData("<leader>sk")]
-    [InlineData("<leader>sh")]
-    public void Handle_SearchHelpMaps_OpenHelp(string key)
+    [TestCase("<leader>sk")]
+    [TestCase("<leader>sh")]
+    public void HandleSearchHelpMapsOpenHelp(string key)
     {
         var state = new NavigationState();
 
-        Assert.Equal(KeyAction.Changed, new KeymapHandler().Handle(state, key));
-        Assert.True(state.IsHelpOpen);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(new KeymapHandler().Handle(state, key), Is.EqualTo(KeyAction.Changed));
+            Assert.That(state.IsHelpOpen, Is.True);
+        }
     }
 }

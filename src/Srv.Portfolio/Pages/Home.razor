@@ -1,7 +1,6 @@
 ﻿@page "/"
 @implements IAsyncDisposable
 @inject ReadmeService Readmes
-@inject MarkdownProcessor Markdown
 @inject IJSRuntime JS
 
 <PageTitle>Simone's Portfolio</PageTitle>
@@ -260,7 +259,6 @@
 @code {
     private readonly NavigationState State = new();
     private readonly KeymapHandler _keymap = new();
-    private readonly CommandHandler _commands = new();
     private PortfolioInterop? _interop;
     private ElementReference _explorer;
     private ElementReference _helpDialog;
@@ -450,7 +448,7 @@
                 _scrollPosition = "All";
                 try
                 {
-                    _renderedDocument = Markdown.Render(source, entry);
+                    _renderedDocument = MarkdownProcessor.Render(source, entry);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -498,7 +496,7 @@
     private string Ctrl(char key) => KeyNotation.Control(key, State.DevNotation);
 
     private void ToggleDevNotation() =>
-        _commands.Handle(State, State.DevNotation ? ":set nodev" : ":set dev");
+        CommandHandler.Handle(State, State.DevNotation ? ":set nodev" : ":set dev");
 
     private async Task ToggleKeyboard()
     {
@@ -521,7 +519,7 @@
 
     private async Task SubmitCommand()
     {
-        var action = _commands.Handle(State, State.CommandText);
+        var action = CommandHandler.Handle(State, State.CommandText);
         if (action == CommandAction.SetKeyboard)
         {
             await (_interop?.SetKeyboardEnabledAsync(State.KeyboardEnabled) ?? ValueTask.CompletedTask);

@@ -2,13 +2,18 @@ using Srv.Portfolio.Models;
 
 namespace Srv.Portfolio.Services;
 
-public sealed record FileSearchResult(PortfolioEntry Entry, string Path, IReadOnlyList<int> Matches);
+internal sealed record FileSearchResult(
+    PortfolioEntry Entry,
+    string Path,
+    IReadOnlyList<int> Matches
+);
 
-public static class FileSearch
+internal static class FileSearch
 {
-    private static readonly SearchEntry[] SearchEntries = PortfolioCatalog.AllEntries()
-        .Select(entry => new SearchEntry(entry, BuildPath(entry)))
-        .ToArray();
+    private static readonly SearchEntry[] SearchEntries =
+    [
+        .. PortfolioCatalog.AllEntries().Select(entry => new SearchEntry(entry, BuildPath(entry))),
+    ];
 
     public static IReadOnlyList<FileSearchResult> Search(string query)
     {
@@ -22,7 +27,11 @@ public static class FileSearch
             var cursor = 0;
             foreach (var character in pattern)
             {
-                var index = path.IndexOf(character.ToString(), cursor, StringComparison.OrdinalIgnoreCase);
+                var index = path.IndexOf(
+                    character.ToString(),
+                    cursor,
+                    StringComparison.OrdinalIgnoreCase
+                );
                 if (index < 0)
                 {
                     break;
@@ -42,18 +51,21 @@ public static class FileSearch
             results.Add((new FileSearchResult(entry, path, matches), score));
         }
 
-        return results.OrderBy(item => item.Score)
-            .ThenBy(item => item.Result.Path.Length)
-            .ThenBy(item => item.Result.Path, StringComparer.OrdinalIgnoreCase)
-            .Select(item => item.Result)
-            .ToArray();
+        return
+        [
+            .. results
+                .OrderBy(item => item.Score)
+                .ThenBy(item => item.Result.Path.Length)
+                .ThenBy(item => item.Result.Path, StringComparer.OrdinalIgnoreCase)
+                .Select(item => item.Result),
+        ];
     }
 
     private static string BuildPath(PortfolioEntry entry)
     {
         var repositoryPath = string.Join('/', PortfolioCatalog.GetPath(entry).Skip(1));
-        return (repositoryPath.Length > 0 ? repositoryPath + "/" : "") +
-            (entry.ReadmePath ?? "README.md");
+        return (repositoryPath.Length > 0 ? repositoryPath + "/" : "")
+            + (entry.ReadmePath ?? "README.md");
     }
 
     private sealed record SearchEntry(PortfolioEntry Entry, string Path);

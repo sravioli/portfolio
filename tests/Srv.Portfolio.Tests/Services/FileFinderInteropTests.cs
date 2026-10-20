@@ -2,101 +2,143 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class FileFinderInteropTests
+[TestFixture]
+internal sealed class FileFinderInteropTests
 {
-    [Fact]
-    public async Task OpenAsync_EveryOpenReimportsAndForwardsDialogToReturnedModule()
+    [Test]
+    public async Task OpenAsyncEveryOpenReimportsAndForwardsDialogToReturnedModule()
     {
         var first = new RecordingJsModule();
         var second = new RecordingJsModule();
         var runtime = new RecordingJsRuntime(first, second);
         var interop = new FileFinderInterop(runtime);
+        await using var interopLifetime = interop.ConfigureAwait(true);
         var dialog = new ElementReference("finder-dialog");
 
-        await interop.OpenAsync(dialog);
-        await interop.OpenAsync(dialog);
+        await interop.OpenAsync(dialog).ConfigureAwait(true);
+        await interop.OpenAsync(dialog).ConfigureAwait(true);
 
-        Assert.Equal(["import", "import"], runtime.Calls.Select(call => call.Identifier));
-        Assert.Equal("./Pages/FileFinder.razor.js", runtime.Calls[0].Arguments.Single());
-        Assert.Equal("./Pages/FileFinder.razor.js", runtime.Calls[1].Arguments.Single());
-        Assert.Equal(new object?[] { dialog }, first.Calls.Single().Arguments);
-        Assert.Equal("open", first.Calls.Single().Identifier);
-        Assert.Equal(new object?[] { dialog }, second.Calls.Single().Arguments);
-        Assert.Equal("open", second.Calls.Single().Identifier);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                runtime.Calls.Select(call => call.Identifier),
+                Is.EqualTo(new object?[] { "import", "import" })
+            );
+            Assert.That(
+                runtime.Calls[0].Arguments.Single(),
+                Is.EqualTo("./Pages/FileFinder.razor.js")
+            );
+            Assert.That(
+                runtime.Calls[1].Arguments.Single(),
+                Is.EqualTo("./Pages/FileFinder.razor.js")
+            );
+            Assert.That(first.Calls.Single().Arguments, Is.EqualTo(new object?[] { dialog }));
+            Assert.That(first.Calls.Single().Identifier, Is.EqualTo("open"));
+            Assert.That(second.Calls.Single().Arguments, Is.EqualTo(new object?[] { dialog }));
+            Assert.That(second.Calls.Single().Identifier, Is.EqualTo("open"));
+        }
     }
 
-    [Theory]
-    [InlineData("import")]
-    [InlineData("open")]
-    public async Task OpenAsync_PropagatesFailuresAndRetainsOnlyAnImportedModule(string failureStage)
+    [TestCase("import")]
+    [TestCase("open")]
+    public async Task OpenAsyncPropagatesFailuresAndRetainsOnlyAnImportedModule(string failureStage)
     {
         var sentinel = new InvalidOperationException(failureStage);
         var module = new RecordingJsModule();
         var runtime = new RecordingJsRuntime(module);
         var interop = new FileFinderInterop(runtime);
+        await using var interopLifetime = interop.ConfigureAwait(true);
         var dialog = new ElementReference("dialog");
         if (failureStage == "import")
             runtime.ImportFailure = sentinel;
         else
             module.InvocationFailures["open"] = sentinel;
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await interop.OpenAsync(dialog));
+        var exception = await Assert
+            .ThrowsAsync<InvalidOperationException>(async () =>
+                await interop.OpenAsync(dialog).ConfigureAwait(true)
+            )
+            .ConfigureAwait(true);
 
-        Assert.Same(sentinel, exception);
-        Assert.Equal("./Pages/FileFinder.razor.js", runtime.Calls.Single().Arguments.Single());
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exception, Is.SameAs(sentinel));
+            Assert.That(
+                runtime.Calls.Single().Arguments.Single(),
+                Is.EqualTo("./Pages/FileFinder.razor.js")
+            );
+        }
         if (failureStage == "import")
-            Assert.Empty(module.Calls);
+            Assert.That(module.Calls, Is.Empty);
         else
-            Assert.Equal("open", module.Calls.Single().Identifier);
-        await interop.CloseAsync(true);
-        var expectedCalls = failureStage == "import" ? Array.Empty<string>() : new[] { "open", "close" };
-        Assert.Equal(expectedCalls, module.Calls.Select(call => call.Identifier));
+            Assert.That(module.Calls.Single().Identifier, Is.EqualTo("open"));
+        await interop.CloseAsync(true).ConfigureAwait(true);
+        var expectedCalls = failureStage == "import" ? [] : new[] { "open", "close" };
+        Assert.That(module.Calls.Select(call => call.Identifier), Is.EqualTo(expectedCalls));
         if (failureStage == "open")
         {
             module.InvocationFailures.Remove("open");
-            Assert.Equal("close", module.Calls[^1].Identifier);
-            Assert.Equal(new object?[] { true }, module.Calls[^1].Arguments);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(module.Calls[^1].Identifier, Is.EqualTo("close"));
+                Assert.That(module.Calls[^1].Arguments, Is.EqualTo(new object?[] { true }));
+            }
         }
     }
 
-    [Fact]
-    public async Task CloseAsync_BeforeOpenIsSafeAndForwardsBothRestoreFocusValues()
+    [Test]
+    public async Task CloseAsyncBeforeOpenIsSafeAndForwardsBothRestoreFocusValues()
     {
         var module = new RecordingJsModule();
         var interop = new FileFinderInterop(new RecordingJsRuntime(module));
+        await using var interopLifetime = interop.ConfigureAwait(true);
 
-        await interop.CloseAsync(true);
-        Assert.Empty(module.Calls);
+        await interop.CloseAsync(true).ConfigureAwait(true);
+        Assert.That(module.Calls, Is.Empty);
 
-        await interop.OpenAsync(new ElementReference("dialog"));
+        await interop.OpenAsync(new ElementReference("dialog")).ConfigureAwait(true);
         module.Calls.Clear();
-        await interop.CloseAsync(false);
-        await interop.CloseAsync(true);
+        await interop.CloseAsync(false).ConfigureAwait(true);
+        await interop.CloseAsync(true).ConfigureAwait(true);
 
-        Assert.Equal(["close", "close"], module.Calls.Select(call => call.Identifier));
-        Assert.Equal(new object?[] { false }, module.Calls[0].Arguments);
-        Assert.Equal(new object?[] { true }, module.Calls[1].Arguments);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                module.Calls.Select(call => call.Identifier),
+                Is.EqualTo(new object?[] { "close", "close" })
+            );
+            Assert.That(module.Calls[0].Arguments, Is.EqualTo(new object?[] { false }));
+            Assert.That(module.Calls[1].Arguments, Is.EqualTo(new object?[] { true }));
+        }
     }
 
-    [Fact]
-    public async Task DisposeAsync_BeforeOpenIsSafe()
+    [Test]
+    public async Task DisposeAsyncBeforeOpenIsSafe()
     {
         var runtime = new RecordingJsRuntime();
 
-        await new FileFinderInterop(runtime).DisposeAsync();
+        await new FileFinderInterop(runtime).DisposeAsync().ConfigureAwait(true);
 
-        Assert.Empty(runtime.Calls);
+        Assert.That(runtime.Calls, Is.Empty);
     }
 
-    [Theory]
-    [InlineData("invoke")]
-    [InlineData("dispose")]
-    [InlineData("success")]
-    [InlineData("disconnected-invoke")]
-    [InlineData("disconnected-dispose")]
-    public async Task DisposeAsync_RecordsOrderedStagesAndRetainsModuleAfterAnyOutcome(string scenario)
+    private static readonly string[] expectedArray =
+    [
+        "invoke:close",
+        "invoke:dispose",
+        "module.DisposeAsync",
+    ];
+
+    [TestCase("invoke")]
+    [TestCase("dispose")]
+    [TestCase("success")]
+    [TestCase("disconnected-invoke")]
+    [TestCase("disconnected-dispose")]
+    public async Task DisposeAsyncRecordsOrderedStagesAndRetainsModuleAfterAnyOutcome(
+        string scenario
+    )
     {
         var module = new RecordingJsModule();
         var invocationFailure = new InvalidOperationException("invoke failed");
@@ -110,30 +152,46 @@ public sealed class FileFinderInteropTests
         if (scenario == "disconnected-dispose")
             module.DisposeFailure = new JSDisconnectedException("disconnected");
         var interop = new FileFinderInterop(new RecordingJsRuntime(module));
-        await interop.OpenAsync(new ElementReference("dialog"));
+        await using var interopLifetime = interop.ConfigureAwait(true);
+        await interop.OpenAsync(new ElementReference("dialog")).ConfigureAwait(true);
         module.Trace.Clear();
         module.Calls.Clear();
 
         if (scenario == "invoke")
-            Assert.Same(invocationFailure,
-                await Assert.ThrowsAsync<InvalidOperationException>(async () => await interop.DisposeAsync()));
+            Assert.That(
+                await Assert
+                    .ThrowsAsync<InvalidOperationException>(async () =>
+                        await interop.DisposeAsync().ConfigureAwait(true)
+                    )
+                    .ConfigureAwait(true),
+                Is.SameAs(invocationFailure)
+            );
         else if (scenario == "dispose")
-            Assert.Same(disposeFailure,
-                await Assert.ThrowsAsync<InvalidOperationException>(async () => await interop.DisposeAsync()));
+            Assert.That(
+                await Assert
+                    .ThrowsAsync<InvalidOperationException>(async () =>
+                        await interop.DisposeAsync().ConfigureAwait(true)
+                    )
+                    .ConfigureAwait(true),
+                Is.SameAs(disposeFailure)
+            );
         else
-            await interop.DisposeAsync();
+            await interop.DisposeAsync().ConfigureAwait(true);
 
         var expected = scenario is "invoke" or "disconnected-invoke"
             ? new[] { "invoke:dispose" }
-            : new[] { "invoke:dispose", "module.DisposeAsync" };
-        Assert.Equal(expected, module.Trace);
+            : ["invoke:dispose", "module.DisposeAsync"];
+        Assert.That(module.Trace, Is.EqualTo(expected));
 
         module.InvocationFailures.Remove("dispose");
         module.DisposeFailure = null;
-        await interop.CloseAsync(true);
-        await interop.DisposeAsync();
-        Assert.Equal("close", module.Calls[^2].Identifier);
-        Assert.Equal(new object?[] { true }, module.Calls[^2].Arguments);
-        Assert.Equal(new[] { "invoke:close", "invoke:dispose", "module.DisposeAsync" }, module.Trace.TakeLast(3));
+        await interop.CloseAsync(true).ConfigureAwait(true);
+        await interop.DisposeAsync().ConfigureAwait(true);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(module.Calls[^2].Identifier, Is.EqualTo("close"));
+            Assert.That(module.Calls[^2].Arguments, Is.EqualTo(new object?[] { true }));
+            Assert.That(module.Trace.TakeLast(3), Is.EqualTo(expectedArray));
+        }
     }
 }

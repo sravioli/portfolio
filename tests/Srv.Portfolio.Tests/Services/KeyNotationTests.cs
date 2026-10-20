@@ -1,28 +1,44 @@
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class KeyNotationTests
+[TestFixture]
+internal sealed class KeyNotationTests
 {
-    [Theory]
-    [InlineData("x", "Space", "Space then x", "<leader>x")]
-    [InlineData("ff", ",", ", then f f", "<leader>ff")]
-    [InlineData("aBz", "Leader", "Leader then a B z", "<leader>aBz")]
-    [InlineData("", "Custom", "Custom then ", "<leader>")]
-    public void Leader_FormatsKeysForDevelopmentAndUserNotation(
-        string keys, string leaderLabel, string expectedUser, string expectedDevelopment)
+    [TestCase("x", "Space", "Space then x", "<leader>x")]
+    [TestCase("ff", ",", ", then f f", "<leader>ff")]
+    [TestCase("aBz", "Leader", "Leader then a B z", "<leader>aBz")]
+    [TestCase("", "Custom", "Custom then ", "<leader>")]
+    public void LeaderFormatsKeysForDevelopmentAndUserNotation(
+        string keys,
+        string leaderLabel,
+        string expectedUser,
+        string expectedDevelopment
+    )
     {
-        Assert.Equal(expectedUser, KeyNotation.Leader(keys, false, leaderLabel));
-        Assert.Equal(expectedDevelopment, KeyNotation.Leader(keys, true, "ignored label"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(KeyNotation.Leader(keys, false, leaderLabel), Is.EqualTo(expectedUser));
+            Assert.That(
+                KeyNotation.Leader(keys, true, "ignored label"),
+                Is.EqualTo(expectedDevelopment)
+            );
+        }
     }
 
-    [Theory]
-    [InlineData('x', "Ctrl+x", "<C-x>")]
-    [InlineData('A', "Ctrl+A", "<C-A>")]
-    [InlineData(',', "Ctrl+,", "<C-,>")]
-    public void Control_PreservesInputCaseAndCharacter(char key, string expectedUser, string expectedDevelopment)
+    [TestCase('x', "Ctrl+x", "<C-x>")]
+    [TestCase('A', "Ctrl+A", "<C-A>")]
+    [TestCase(',', "Ctrl+,", "<C-,>")]
+    public void ControlPreservesInputCaseAndCharacter(
+        char key,
+        string expectedUser,
+        string expectedDevelopment
+    )
     {
-        Assert.Equal(expectedUser, KeyNotation.Control(key, false));
-        Assert.Equal(expectedDevelopment, KeyNotation.Control(key, true));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(KeyNotation.Control(key, false), Is.EqualTo(expectedUser));
+            Assert.That(KeyNotation.Control(key, true), Is.EqualTo(expectedDevelopment));
+        }
     }
 }

@@ -1,14 +1,14 @@
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class NavigationStateTests
+[TestFixture]
+internal sealed class NavigationStateTests
 {
-    [Theory]
-    [InlineData("")]
-    [InlineData("chrono")]
-    [InlineData("memo.wz")]
-    public void OpenSelected_Document_ResetsViewAndPreservesExplorerState(string repository)
+    [TestCase("")]
+    [TestCase("chrono")]
+    [TestCase("memo.wz")]
+    public void OpenSelectedDocumentResetsViewAndPreservesExplorerState(string repository)
     {
         var state = new NavigationState();
         var entry = state.NavigateTo(repository);
@@ -21,21 +21,24 @@ public sealed class NavigationStateTests
 
         var document = state.OpenSelected();
 
-        Assert.Same(entry, document);
-        Assert.Same(entry, state.CurrentDocument);
-        Assert.Same(entry, state.CurrentFolder);
-        Assert.True(state.IsReading);
-        Assert.False(state.IsWelcome);
-        Assert.False(state.IsRawView);
-        Assert.Null(state.Message);
-        Assert.Equal(entries, state.Entries);
-        Assert.Equal(selection, state.SelectedIndex);
-        Assert.True(state.IsCommandMode);
-        Assert.Equal(":help", state.CommandText);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(document, Is.SameAs(entry));
+            Assert.That(state.CurrentDocument, Is.SameAs(entry));
+            Assert.That(state.CurrentFolder, Is.SameAs(entry));
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.IsWelcome, Is.False);
+            Assert.That(state.IsRawView, Is.False);
+            Assert.That(state.Message, Is.Null);
+            Assert.That(state.Entries, Is.EqualTo(entries));
+            Assert.That(state.SelectedIndex, Is.EqualTo(selection));
+            Assert.That(state.IsCommandMode, Is.True);
+            Assert.That(state.CommandText, Is.EqualTo(":help"));
+        }
     }
 
-    [Fact]
-    public void NavigateTo_UnknownRepository_PreservesExistingState()
+    [Test]
+    public void NavigateToUnknownRepositoryPreservesExistingState()
     {
         var state = new NavigationState();
         var document = state.NavigateTo("memo.wz");
@@ -46,19 +49,22 @@ public sealed class NavigationStateTests
 
         var result = state.NavigateTo("missing");
 
-        Assert.Null(result);
-        Assert.Same(document, state.CurrentDocument);
-        Assert.Same(document, state.CurrentFolder);
-        Assert.True(state.IsReading);
-        Assert.False(state.IsWelcome);
-        Assert.True(state.IsRawView);
-        Assert.Equal("Old message", state.Message);
-        Assert.Equal(selection, state.SelectedIndex);
-        Assert.Equal(entries, state.Entries);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.Null);
+            Assert.That(state.CurrentDocument, Is.SameAs(document));
+            Assert.That(state.CurrentFolder, Is.SameAs(document));
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.IsWelcome, Is.False);
+            Assert.That(state.IsRawView, Is.True);
+            Assert.That(state.Message, Is.EqualTo("Old message"));
+            Assert.That(state.SelectedIndex, Is.EqualTo(selection));
+            Assert.That(state.Entries, Is.EqualTo(entries));
+        }
     }
 
-    [Fact]
-    public void NavigateTo_AnotherDocument_ResetsViewAndPreservesCommand()
+    [Test]
+    public void NavigateToAnotherDocumentResetsViewAndPreservesCommand()
     {
         var state = new NavigationState();
         state.NavigateTo("memo.wz");
@@ -69,20 +75,26 @@ public sealed class NavigationStateTests
 
         var document = state.NavigateTo("chrono");
 
-        Assert.Same(document, state.CurrentDocument);
-        Assert.Equal("chrono", state.CurrentFolder.Repository);
-        Assert.Equal("README.md", state.SelectedEntry.Name);
-        Assert.True(state.IsReading);
-        Assert.False(state.IsWelcome);
-        Assert.False(state.IsRawView);
-        Assert.Null(state.Message);
-        Assert.True(state.IsCommandMode);
-        Assert.Equal(":help", state.CommandText);
-        Assert.Contains(state.Entries, item => item.Name == "wezterm-plugins/" && item.IsExpanded);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.CurrentDocument, Is.SameAs(document));
+            Assert.That(state.CurrentFolder.Repository, Is.EqualTo("chrono"));
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("README.md"));
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.IsWelcome, Is.False);
+            Assert.That(state.IsRawView, Is.False);
+            Assert.That(state.Message, Is.Null);
+            Assert.That(state.IsCommandMode, Is.True);
+            Assert.That(state.CommandText, Is.EqualTo(":help"));
+            Assert.That(
+                state.Entries.Any(item => item.Name == "wezterm-plugins/" && item.IsExpanded),
+                Is.True
+            );
+        }
     }
 
-    [Fact]
-    public void BeginCommand_ExistingInput_ReplacesInputWithoutChangingDocumentOrMessage()
+    [Test]
+    public void BeginCommandExistingInputReplacesInputWithoutChangingDocumentOrMessage()
     {
         var state = new NavigationState();
         var document = state.NavigateTo("memo.wz");
@@ -91,14 +103,17 @@ public sealed class NavigationStateTests
 
         state.BeginCommand();
 
-        Assert.True(state.IsCommandMode);
-        Assert.Equal(":", state.CommandText);
-        Assert.Same(document, state.CurrentDocument);
-        Assert.Equal("Old message", state.Message);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsCommandMode, Is.True);
+            Assert.That(state.CommandText, Is.EqualTo(":"));
+            Assert.That(state.CurrentDocument, Is.SameAs(document));
+            Assert.That(state.Message, Is.EqualTo("Old message"));
+        }
     }
 
-    [Fact]
-    public void EndCommand_ActiveCommand_ClearsInputWithoutChangingDocumentOrMessage()
+    [Test]
+    public void EndCommandActiveCommandClearsInputWithoutChangingDocumentOrMessage()
     {
         var state = new NavigationState();
         var document = state.NavigateTo("memo.wz");
@@ -108,16 +123,21 @@ public sealed class NavigationStateTests
 
         state.EndCommand();
 
-        Assert.False(state.IsCommandMode);
-        Assert.Empty(state.CommandText);
-        Assert.Same(document, state.CurrentDocument);
-        Assert.Equal("Old message", state.Message);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsCommandMode, Is.False);
+            Assert.That(state.CommandText, Is.Empty);
+            Assert.That(state.CurrentDocument, Is.SameAs(document));
+            Assert.That(state.Message, Is.EqualTo("Old message"));
+        }
     }
 
-    [Theory]
-    [InlineData(true, "Keymaps on.")]
-    [InlineData(false, "Keymaps off. Type :set keys to turn them back on.")]
-    public void SetKeyboardEnabled_RequestedValue_UpdatesFeedbackWithoutClearingCommand(bool enabled, string message)
+    [TestCase(true, "Keymaps on.")]
+    [TestCase(false, "Keymaps off. Type :set keys to turn them back on.")]
+    public void SetKeyboardEnabledRequestedValueUpdatesFeedbackWithoutClearingCommand(
+        bool enabled,
+        string message
+    )
     {
         var state = new NavigationState { KeyboardEnabled = !enabled };
         state.BeginCommand();
@@ -125,14 +145,17 @@ public sealed class NavigationStateTests
 
         state.SetKeyboardEnabled(enabled);
 
-        Assert.Equal(enabled, state.KeyboardEnabled);
-        Assert.Equal(message, state.Message);
-        Assert.True(state.IsCommandMode);
-        Assert.Equal(":help", state.CommandText);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.KeyboardEnabled, Is.EqualTo(enabled));
+            Assert.That(state.Message, Is.EqualTo(message));
+            Assert.That(state.IsCommandMode, Is.True);
+            Assert.That(state.CommandText, Is.EqualTo(":help"));
+        }
     }
 
-    [Fact]
-    public void CloseDocument_FromReadme_RestoresWelcomeAndPreservesExplorer()
+    [Test]
+    public void CloseDocumentFromReadmeRestoresWelcomeAndPreservesExplorer()
     {
         var state = new NavigationState();
         state.NavigateTo("memo.wz");
@@ -145,83 +168,104 @@ public sealed class NavigationStateTests
 
         state.CloseDocument();
 
-        Assert.True(state.IsWelcome);
-        Assert.False(state.IsReading);
-        Assert.Null(state.CurrentDocument);
-        Assert.Equal(PortfolioCatalog.RootEntry, state.CurrentFolder);
-        Assert.Equal(entries, state.Entries);
-        Assert.Equal(selection, state.SelectedIndex);
-        Assert.False(state.IsRawView);
-        Assert.False(state.IsCommandMode);
-        Assert.Empty(state.CommandText);
-        Assert.Null(state.Message);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsWelcome, Is.True);
+            Assert.That(state.IsReading, Is.False);
+            Assert.That(state.CurrentDocument, Is.Null);
+            Assert.That(state.CurrentFolder, Is.EqualTo(PortfolioCatalog.RootEntry));
+            Assert.That(state.Entries, Is.EqualTo(entries));
+            Assert.That(state.SelectedIndex, Is.EqualTo(selection));
+            Assert.That(state.IsRawView, Is.False);
+            Assert.That(state.IsCommandMode, Is.False);
+            Assert.That(state.CommandText, Is.Empty);
+            Assert.That(state.Message, Is.Null);
+        }
 
         state.OpenSelected();
-        Assert.True(state.IsReading);
-        Assert.False(state.IsWelcome);
-        Assert.Equal("memo.wz", state.CurrentDocument?.Repository);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.IsWelcome, Is.False);
+            Assert.That(state.CurrentDocument?.Repository, Is.EqualTo("memo.wz"));
+        }
     }
 
-    [Fact]
-    public void Constructor_InitialState_ShowsWelcomeWithoutOpeningDocument()
+    [Test]
+    public void ConstructorInitialStateShowsWelcomeWithoutOpeningDocument()
     {
         var state = new NavigationState();
 
-        Assert.True(state.IsWelcome);
-        Assert.False(state.IsReading);
-        Assert.Null(state.CurrentDocument);
-        Assert.Equal(PortfolioCatalog.RootEntry, state.CurrentFolder);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsWelcome, Is.True);
+            Assert.That(state.IsReading, Is.False);
+            Assert.That(state.CurrentDocument, Is.Null);
+            Assert.That(state.CurrentFolder, Is.EqualTo(PortfolioCatalog.RootEntry));
+        }
     }
 
-    [Fact]
-    public void OpenSelected_FromWelcome_OpensReadmeAndDismissesWelcome()
+    [Test]
+    public void OpenSelectedFromWelcomeOpensReadmeAndDismissesWelcome()
     {
         var state = new NavigationState();
 
         state.OpenSelected();
 
-        Assert.False(state.IsWelcome);
-        Assert.True(state.IsReading);
-        Assert.Equal(PortfolioCatalog.RootEntry, state.CurrentDocument);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsWelcome, Is.False);
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.CurrentDocument, Is.EqualTo(PortfolioCatalog.RootEntry));
+        }
         state.GoToParent();
-        Assert.False(state.IsWelcome);
+        Assert.That(state.IsWelcome, Is.False);
     }
 
-    [Fact]
-    public void OpenSelected_FolderWhileWelcoming_PreservesWelcomeUntilFileOpens()
+    [Test]
+    public void OpenSelectedFolderWhileWelcomingPreservesWelcomeUntilFileOpens()
     {
         var state = new NavigationState();
         state.SelectIndex(1);
 
         state.OpenSelected();
 
-        Assert.True(state.IsWelcome);
-        Assert.False(state.IsReading);
-        Assert.Equal(PortfolioCatalog.RootEntry, state.CurrentFolder);
-        Assert.Equal("chrono/", state.SelectedEntry.Name);
-        Assert.True(state.SelectedEntry.IsExpanded);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsWelcome, Is.True);
+            Assert.That(state.IsReading, Is.False);
+            Assert.That(state.CurrentFolder, Is.EqualTo(PortfolioCatalog.RootEntry));
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("chrono/"));
+            Assert.That(state.SelectedEntry.IsExpanded, Is.True);
+        }
 
         state.SelectIndex(2);
         state.OpenSelected();
-        Assert.False(state.IsWelcome);
-        Assert.True(state.IsReading);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsWelcome, Is.False);
+            Assert.That(state.IsReading, Is.True);
+        }
     }
 
-    [Fact]
-    public void GoToParent_FromReadme_ReturnsToFolderWithReadmeSelected()
+    [Test]
+    public void GoToParentFromReadmeReturnsToFolderWithReadmeSelected()
     {
         var state = new NavigationState();
         state.OpenSelected();
 
         state.GoToParent();
 
-        Assert.False(state.IsReading);
-        Assert.Equal(0, state.SelectedIndex);
-        Assert.Equal("README.md", state.SelectedEntry.Name);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsReading, Is.False);
+            Assert.That(state.SelectedIndex, Is.Zero);
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("README.md"));
+        }
     }
 
-    [Fact]
-    public void GoToParent_FromExpandedFolder_CollapsesItWithoutReplacingTree()
+    [Test]
+    public void GoToParentFromExpandedFolderCollapsesItWithoutReplacingTree()
     {
         var state = new NavigationState();
         state.GoToParent();
@@ -229,40 +273,46 @@ public sealed class NavigationStateTests
         state.OpenSelected();
         state.GoToParent();
 
-        Assert.Equal(4, state.SelectedIndex);
-        Assert.Equal("wezterm-plugins/", state.SelectedEntry.Name);
-        Assert.False(state.SelectedEntry.IsExpanded);
-        Assert.Equal(5, state.Entries.Count);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.SelectedIndex, Is.EqualTo(4));
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("wezterm-plugins/"));
+            Assert.That(state.SelectedEntry.IsExpanded, Is.False);
+            Assert.That(state.Entries, Has.Count.EqualTo(5));
+        }
     }
 
-    [Fact]
-    public void NavigateTo_Nvim_OpensPlaceholderReadme()
+    [Test]
+    public void NavigateToNvimOpensPlaceholderReadme()
     {
         var state = new NavigationState();
 
         var entry = state.NavigateTo("nvim");
 
-        Assert.Equal("nvim", entry?.Repository);
-        Assert.True(state.IsReading);
-        Assert.Equal(entry, state.CurrentDocument);
-        Assert.False(state.IsWelcome);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(entry?.Repository, Is.EqualTo("nvim"));
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.CurrentDocument, Is.EqualTo(entry));
+            Assert.That(state.IsWelcome, Is.False);
+        }
     }
 
-    [Fact]
-    public void MoveSelection_ClampsAtListingEdges()
+    [Test]
+    public void MoveSelectionClampsAtListingEdges()
     {
         var state = new NavigationState();
         state.GoToParent();
 
         state.MoveSelection(-1);
-        Assert.Equal(0, state.SelectedIndex);
+        Assert.That(state.SelectedIndex, Is.Zero);
 
         state.MoveSelection(100);
-        Assert.Equal(state.Entries.Count - 1, state.SelectedIndex);
+        Assert.That(state.SelectedIndex, Is.EqualTo(state.Entries.Count - 1));
     }
 
-    [Fact]
-    public void OpenSelected_PluginFile_OpensItsReadmeAndPreservesParentSelection()
+    [Test]
+    public void OpenSelectedPluginFileOpensItsReadmeAndPreservesParentSelection()
     {
         var state = new NavigationState();
         state.GoToParent();
@@ -272,20 +322,26 @@ public sealed class NavigationStateTests
 
         state.OpenSelected();
 
-        Assert.Equal("memo.wz", state.CurrentFolder.Name);
-        Assert.Equal("memo.wz", state.CurrentDocument?.Repository);
-        Assert.True(state.IsReading);
-        Assert.Contains(state.Entries, item => item.Name == "chrono/");
-        Assert.Contains(state.Entries, item => item.Name == "wezterm-plugins/" && item.IsExpanded);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.CurrentFolder.Name, Is.EqualTo("memo.wz"));
+            Assert.That(state.CurrentDocument?.Repository, Is.EqualTo("memo.wz"));
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.Entries.Any(item => item.Name == "chrono/"), Is.True);
+            Assert.That(
+                state.Entries.Any(item => item.Name == "wezterm-plugins/" && item.IsExpanded),
+                Is.True
+            );
+        }
 
         state.GoToParent();
-        Assert.Equal("memo.wz", state.SelectedEntry.Name);
+        Assert.That(state.SelectedEntry.Name, Is.EqualTo("memo.wz"));
         state.CollapseSelected();
-        Assert.Equal("wezterm-plugins/", state.SelectedEntry.Name);
+        Assert.That(state.SelectedEntry.Name, Is.EqualTo("wezterm-plugins/"));
     }
 
-    [Fact]
-    public void OpenSelected_FolderWhileReading_ExpandsInlineAndPreservesDocument()
+    [Test]
+    public void OpenSelectedFolderWhileReadingExpandsInlineAndPreservesDocument()
     {
         var state = new NavigationState();
         state.OpenSelected();
@@ -293,65 +349,91 @@ public sealed class NavigationStateTests
 
         var document = state.OpenSelected();
 
-        Assert.Null(document);
-        Assert.True(state.IsReading);
-        Assert.Equal(PortfolioCatalog.RootEntry, state.CurrentDocument);
-        Assert.Equal(PortfolioCatalog.RootEntry, state.CurrentFolder);
-        Assert.Equal("wezterm-plugins/", state.SelectedEntry.Name);
-        Assert.True(state.SelectedEntry.IsExpanded);
-        Assert.Equal(17, state.Entries.Count);
-        Assert.Equal(1, state.Entries[5].Depth);
-        Assert.Equal("README.md", state.Entries[5].Name);
-        Assert.Equal("beacon.wz", state.Entries[6].Name);
-        Assert.DoesNotContain(state.Entries, item => item.Name == "../");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(document, Is.Null);
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.CurrentDocument, Is.EqualTo(PortfolioCatalog.RootEntry));
+            Assert.That(state.CurrentFolder, Is.EqualTo(PortfolioCatalog.RootEntry));
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("wezterm-plugins/"));
+            Assert.That(state.SelectedEntry.IsExpanded, Is.True);
+            Assert.That(state.Entries, Has.Count.EqualTo(17));
+        }
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.Entries[5].Depth, Is.EqualTo(1));
+            Assert.That(state.Entries[5].Name, Is.EqualTo("README.md"));
+            Assert.That(state.Entries[6].Name, Is.EqualTo("beacon.wz"));
+            Assert.That(state.Entries.Any(item => item.Name == "../"), Is.False);
+        }
     }
 
-    [Fact]
-    public void OpenSelected_ExpandedFolder_HidesChildrenAndKeepsOtherFoldersExpanded()
+    [Test]
+    public void OpenSelectedExpandedFolderHidesChildrenAndKeepsOtherFoldersExpanded()
     {
         var state = new NavigationState();
         state.SelectIndex(1);
         state.OpenSelected();
-        state.SelectIndex(state.Entries.ToList().FindIndex(item => item.Name == "wezterm-plugins/"));
+        state.SelectIndex(
+            state.Entries.ToList().FindIndex(item => item.Name == "wezterm-plugins/")
+        );
         state.OpenSelected();
         state.OpenSelected();
 
-        Assert.False(state.SelectedEntry.IsExpanded);
-        Assert.DoesNotContain(state.Entries, item => item.Name == "beacon.wz");
-        Assert.Contains(state.Entries, item => item.Name == "chrono/" && item.IsExpanded);
-        Assert.Equal("README.md", state.Entries[2].Name);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.SelectedEntry.IsExpanded, Is.False);
+            Assert.That(state.Entries.Any(item => item.Name == "beacon.wz"), Is.False);
+            Assert.That(
+                state.Entries.Any(item => item.Name == "chrono/" && item.IsExpanded),
+                Is.True
+            );
+            Assert.That(state.Entries[2].Name, Is.EqualTo("README.md"));
+        }
     }
 
-    [Fact]
-    public void NavigateTo_HiddenPlugin_ExpandsAncestorsAndSelectsFile()
+    [Test]
+    public void NavigateToHiddenPluginExpandsAncestorsAndSelectsFile()
     {
         var state = new NavigationState();
 
         state.NavigateTo("memo.wz");
 
-        Assert.True(state.IsReading);
-        Assert.Equal("memo.wz", state.SelectedEntry.Name);
-        Assert.Equal("memo.wz", state.CurrentDocument?.Repository);
-        Assert.Contains(state.Entries, item => item.Name == "wezterm-plugins/" && item.IsExpanded);
-        Assert.Contains(state.Entries, item => item.Name == "chrono/");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("memo.wz"));
+            Assert.That(state.CurrentDocument?.Repository, Is.EqualTo("memo.wz"));
+            Assert.That(
+                state.Entries.Any(item => item.Name == "wezterm-plugins/" && item.IsExpanded),
+                Is.True
+            );
+            Assert.That(state.Entries.Any(item => item.Name == "chrono/"), Is.True);
+        }
     }
 
-    [Fact]
-    public void CollapseSelected_ChildOfFolder_SelectsThenCollapsesParentWithoutClosingDocument()
+    [Test]
+    public void CollapseSelectedChildOfFolderSelectsThenCollapsesParentWithoutClosingDocument()
     {
         var state = new NavigationState();
         state.NavigateTo("memo.wz");
 
         state.CollapseSelected();
-        Assert.Equal("wezterm-plugins/", state.SelectedEntry.Name);
-        Assert.True(state.SelectedEntry.IsExpanded);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("wezterm-plugins/"));
+            Assert.That(state.SelectedEntry.IsExpanded, Is.True);
+        }
 
         state.CollapseSelected();
 
-        Assert.False(state.SelectedEntry.IsExpanded);
-        Assert.True(state.IsReading);
-        Assert.Equal("memo.wz", state.CurrentDocument?.Repository);
-        Assert.DoesNotContain(state.Entries, item => item.Name == "memo.wz");
-        Assert.InRange(state.SelectedIndex, 0, state.Entries.Count - 1);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.SelectedEntry.IsExpanded, Is.False);
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.CurrentDocument?.Repository, Is.EqualTo("memo.wz"));
+            Assert.That(state.Entries.Any(item => item.Name == "memo.wz"), Is.False);
+            Assert.That(state.SelectedIndex, Is.InRange(0, state.Entries.Count - 1));
+        }
     }
 }

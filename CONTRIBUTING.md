@@ -16,7 +16,9 @@ Thanks for your interest in improving this project.
 3. Build:
    - `dotnet build .\Srv.Portfolio.slnx`
 4. Run tests:
-   - `dotnet test .\tests\Srv.Portfolio.Tests\Srv.Portfolio.Tests.csproj`
+   - `dotnet test --solution .\Srv.Portfolio.slnx`
+   - Tests use NUnit and the native Microsoft.Testing.Platform runner selected by `global.json`.
+   - For coverage: `dotnet test --solution .\Srv.Portfolio.slnx --coverlet --coverlet-output-format cobertura --results-directory TestResults`
 
 ## Coding expectations
 

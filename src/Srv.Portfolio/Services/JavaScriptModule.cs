@@ -5,12 +5,17 @@ namespace Srv.Portfolio.Services;
 internal static class JavaScriptModule
 {
     internal static ValueTask InvokeVoidIfLoadedAsync(
-        this IJSObjectReference? module, string method, params object?[] args) =>
-        module?.InvokeVoidAsync(method, args) ?? ValueTask.CompletedTask;
+        this IJSObjectReference? module,
+        string method,
+        params object?[] args
+    ) => module?.InvokeVoidAsync(method, args) ?? ValueTask.CompletedTask;
 
-    internal static ValueTask<T> InvokeIfLoadedAsync<T>(
-        this IJSObjectReference? module, string method, T fallback, params object?[] args) =>
-        module?.InvokeAsync<T>(method, args) ?? ValueTask.FromResult(fallback);
+    internal static ValueTask<bool> InvokeBooleanIfLoadedAsync(
+        this IJSObjectReference? module,
+        string method,
+        bool fallback,
+        params object?[] args
+    ) => module?.InvokeAsync<bool>(method, args) ?? ValueTask.FromResult(fallback);
 
     internal static async ValueTask DisposeModuleAsync(this IJSObjectReference? module)
     {
@@ -21,11 +26,9 @@ internal static class JavaScriptModule
 
         try
         {
-            await module.InvokeVoidAsync("dispose");
-            await module.DisposeAsync();
+            await module.InvokeVoidAsync("dispose").ConfigureAwait(true);
+            await module.DisposeAsync().ConfigureAwait(true);
         }
-        catch (JSDisconnectedException)
-        {
-        }
+        catch (JSDisconnectedException) { }
     }
 }

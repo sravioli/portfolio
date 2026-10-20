@@ -9,8 +9,11 @@ public partial class FileFinder
 {
     private static readonly TimeSpan PreviewDebounceDelay = TimeSpan.FromMilliseconds(150);
 
-    [Parameter] public EventCallback<PortfolioEntry> OnOpen { get; set; }
-    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter]
+    public EventCallback<PortfolioEntry> OnOpen { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
 
     private IReadOnlyList<FileSearchResult> _results = FileSearch.Search(string.Empty);
     private readonly int _totalCount = PortfolioCatalog.AllEntries().Count();
@@ -30,8 +33,8 @@ public partial class FileFinder
         if (firstRender)
         {
             _interop = new FileFinderInterop(JS);
-            await _interop.OpenAsync(_dialog);
-            await LoadPreview();
+            await _interop.OpenAsync(_dialog).ConfigureAwait(true);
+            await LoadPreview().ConfigureAwait(true);
         }
     }
 
@@ -40,14 +43,14 @@ public partial class FileFinder
         _query = args.Value?.ToString() ?? string.Empty;
         _results = FileSearch.Search(_query);
         _selectedIndex = 0;
-        await LoadPreview(debounce: true);
+        await LoadPreview(debounce: true).ConfigureAwait(true);
     }
 
     private async Task SelectResult(int index)
     {
         _selectedIndex = Math.Clamp(index, 0, Math.Max(0, _results.Count - 1));
-        await _input.FocusAsync(preventScroll: true);
-        await LoadPreview();
+        await _input.FocusAsync(preventScroll: true).ConfigureAwait(true);
+        await LoadPreview().ConfigureAwait(true);
     }
 
     private async Task LoadPreview(bool debounce = false)
@@ -67,21 +70,22 @@ public partial class FileFinder
         {
             if (debounce)
             {
-                await Task.Delay(PreviewDebounceDelay, cancellation.Token);
+                await Task.Delay(PreviewDebounceDelay, cancellation.Token).ConfigureAwait(true);
             }
 
             _loading = true;
-            await InvokeAsync(StateHasChanged);
-            var source = await Readmes.GetAsync(_results[_selectedIndex].Entry, cancellation.Token);
+            await InvokeAsync(StateHasChanged).ConfigureAwait(true);
+            var source = await Readmes
+                .GetAsync(_results[_selectedIndex].Entry, cancellation.Token)
+                .ConfigureAwait(true);
             if (!cancellation.IsCancellationRequested && !_disposed)
             {
                 _preview = source;
             }
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (Exception exception)
+            when (exception is HttpRequestException or OperationCanceledException)
         {
             if (!cancellation.IsCancellationRequested && !_disposed)
             {
@@ -97,7 +101,7 @@ public partial class FileFinder
                 cancellation.Dispose();
                 if (!_disposed)
                 {
-                    await InvokeAsync(StateHasChanged);
+                    await InvokeAsync(StateHasChanged).ConfigureAwait(true);
                 }
             }
         }
@@ -107,17 +111,19 @@ public partial class FileFinder
     {
         if (args.Key == "Escape")
         {
-            await Close();
+            await Close().ConfigureAwait(true);
         }
         else if (args.Key == "Enter")
         {
-            await OpenSelected();
+            await OpenSelected().ConfigureAwait(true);
         }
-        else if (args.Key is "ArrowDown" or "ArrowUp" ||
-                 (args.CtrlKey && args.Key is "j" or "k" or "n" or "p"))
+        else if (
+            args.Key is "ArrowDown" or "ArrowUp"
+            || (args.CtrlKey && args.Key is "j" or "k" or "n" or "p")
+        )
         {
             var down = args.Key is "ArrowDown" or "j" or "n";
-            await SelectResult(_selectedIndex + (down ? 1 : -1));
+            await SelectResult(_selectedIndex + (down ? 1 : -1)).ConfigureAwait(true);
         }
     }
 
@@ -129,14 +135,16 @@ public partial class FileFinder
         }
 
         var entry = _results[_selectedIndex].Entry;
-        await (_interop?.CloseAsync(restoreFocus: false) ?? ValueTask.CompletedTask);
-        await OnOpen.InvokeAsync(entry);
+        if (_interop is not null)
+            await _interop.CloseAsync(restoreFocus: false).ConfigureAwait(true);
+        await OnOpen.InvokeAsync(entry).ConfigureAwait(true);
     }
 
     private async Task Close()
     {
-        await (_interop?.CloseAsync(restoreFocus: true) ?? ValueTask.CompletedTask);
-        await OnClose.InvokeAsync();
+        if (_interop is not null)
+            await _interop.CloseAsync(restoreFocus: true).ConfigureAwait(true);
+        await OnClose.InvokeAsync().ConfigureAwait(true);
     }
 
     public async ValueTask DisposeAsync()
@@ -145,7 +153,8 @@ public partial class FileFinder
         CancellationSources.CancelAndDispose(ref _previewCancellation);
         if (_interop is not null)
         {
-            await _interop.DisposeAsync();
+            await _interop.DisposeAsync().ConfigureAwait(true);
         }
+        GC.SuppressFinalize(this);
     }
 }

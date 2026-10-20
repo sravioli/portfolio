@@ -6,7 +6,11 @@ using Srv.Portfolio.Models;
 
 namespace Srv.Portfolio.Services;
 
-public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage, TimeProvider timeProvider)
+internal sealed partial class ReadmeService(
+    HttpClient httpClient,
+    IBrowserStorage storage,
+    TimeProvider timeProvider
+)
 {
     private const string DescriptionsStorageKey = "srv.github-descriptions";
     private static readonly TimeSpan DescriptionsLifetime = TimeSpan.FromHours(6);
@@ -16,9 +20,12 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
 
     public async Task<string> GetAsync(PortfolioEntry entry, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(entry);
         if (entry.IsReadmeLocal)
         {
-            return entry.IsRoot ? RootReadme : await BuildPluginReadmeAsync(cancellationToken);
+            return entry.IsRoot
+                ? RootReadme
+                : await BuildPluginReadmeAsync(cancellationToken).ConfigureAwait(true);
         }
 
         if (!entry.HasReadme)
@@ -31,8 +38,8 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
             return cached;
         }
 
-        var uri = GitHubUrls.RawFile(entry.Repository, entry.ReadmePath!);
-        var content = await httpClient.GetStringAsync(uri, cancellationToken);
+        var uri = new Uri(GitHubUrls.RawFile(entry.Repository, entry.ReadmePath!));
+        var content = await httpClient.GetStringAsync(uri, cancellationToken).ConfigureAwait(true);
         _cache[entry.Repository] = content;
         return content;
     }
@@ -40,42 +47,72 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
     private async Task<string> BuildPluginReadmeAsync(CancellationToken cancellationToken)
     {
         var plugins = PortfolioCatalog.Find("wezterm-plugins")!.Children;
-        var descriptions = await GetRepositoryDescriptionsAsync(cancellationToken);
+        var descriptions = await GetRepositoryDescriptionsAsync(cancellationToken)
+            .ConfigureAwait(true);
 
-        return "# WezTerm plugins\n\nA collection of small, composable plugins for WezTerm.\n\n" +
-            string.Join("\n", plugins.Select(plugin =>
-                $"- [{plugin.Name}]({GitHubUrls.Repository(plugin.Repository)}) — " +
-                $"{descriptions.GetValueOrDefault(plugin.Repository) ?? plugin.Description}")) +
-            "\n";
+        return "# WezTerm plugins\n\nA collection of small, composable plugins for WezTerm.\n\n"
+            + string.Join(
+                "\n",
+                plugins.Select(plugin =>
+                    $"- [{plugin.Name}]({GitHubUrls.Repository(plugin.Repository)}) — "
+                    + $"{descriptions.GetValueOrDefault(plugin.Repository) ?? plugin.Description}"
+                )
+            )
+            + "\n";
     }
 
     // One unauthenticated request covers every plugin; the result is kept in localStorage so reloads
     // stay well under GitHub's 60 requests/hour limit. Failures fall back to stale or catalog text.
-    private async Task<Dictionary<string, string?>> GetRepositoryDescriptionsAsync(CancellationToken cancellationToken)
+    private async Task<Dictionary<string, string?>> GetRepositoryDescriptionsAsync(
+        CancellationToken cancellationToken
+    )
     {
         if (_descriptions is not null)
         {
             return _descriptions;
         }
 
-        var stored = await ReadStoredDescriptionsAsync();
-        if (stored is not null && timeProvider.GetUtcNow() - stored.FetchedAt < DescriptionsLifetime)
+        var stored = await ReadStoredDescriptionsAsync().ConfigureAwait(true);
+        if (
+            stored is not null
+            && timeProvider.GetUtcNow() - stored.FetchedAt < DescriptionsLifetime
+        )
         {
             return _descriptions = ToLookup(stored.Descriptions);
         }
 
         try
         {
-            var repositories = await httpClient.GetFromJsonAsync<GitHubRepository[]>(GitHubUrls.RepositoriesApiUrl, cancellationToken) ?? [];
-            _descriptions = ToLookup(repositories
-                .Where(repository => repository.Name is not null)
-                .DistinctBy(repository => repository.Name, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(repository => repository.Name!, repository => repository.Description));
-            await storage.SetAsync(
-                DescriptionsStorageKey,
-                JsonSerializer.Serialize(new StoredDescriptions(timeProvider.GetUtcNow(), _descriptions)));
+            var repositories =
+                await httpClient
+                    .GetFromJsonAsync(
+                        GitHubUrls.RepositoriesApiUrl,
+                        ReadmeJsonContext.Default.GitHubRepositoryArray,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(true)
+                ?? [];
+            _descriptions = ToLookup(
+                repositories
+                    .Where(repository => repository.Name is not null)
+                    .DistinctBy(repository => repository.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        repository => repository.Name!,
+                        repository => repository.Description
+                    )
+            );
+            await storage
+                .SetAsync(
+                    DescriptionsStorageKey,
+                    JsonSerializer.Serialize(
+                        new StoredDescriptions(timeProvider.GetUtcNow(), _descriptions),
+                        ReadmeJsonContext.Default.StoredDescriptions
+                    )
+                )
+                .ConfigureAwait(true);
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or NotSupportedException)
+        catch (Exception exception)
+            when (exception is HttpRequestException or JsonException or NotSupportedException)
         {
             _descriptions = ToLookup(stored?.Descriptions ?? []);
         }
@@ -85,7 +122,7 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
 
     private async Task<StoredDescriptions?> ReadStoredDescriptionsAsync()
     {
-        var json = await storage.GetAsync(DescriptionsStorageKey);
+        var json = await storage.GetAsync(DescriptionsStorageKey).ConfigureAwait(true);
         if (string.IsNullOrEmpty(json))
         {
             return null;
@@ -93,7 +130,11 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
 
         try
         {
-            return JsonSerializer.Deserialize<StoredDescriptions>(json) is { Descriptions: not null } stored ? stored : null;
+            return
+                JsonSerializer.Deserialize(json, ReadmeJsonContext.Default.StoredDescriptions)
+                    is { Descriptions: not null } stored
+                ? stored
+                : null;
         }
         catch (JsonException)
         {
@@ -106,9 +147,18 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
 
     private sealed record GitHubRepository(
         [property: JsonPropertyName("name")] string? Name,
-        [property: JsonPropertyName("description")] string? Description);
+        [property: JsonPropertyName("description")] string? Description
+    );
 
-    private sealed record StoredDescriptions(DateTimeOffset FetchedAt, Dictionary<string, string?> Descriptions);
+    private sealed record StoredDescriptions(
+        DateTimeOffset FetchedAt,
+        Dictionary<string, string?> Descriptions
+    );
+
+    [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+    [JsonSerializable(typeof(GitHubRepository[]))]
+    [JsonSerializable(typeof(StoredDescriptions))]
+    private sealed partial class ReadmeJsonContext : JsonSerializerContext;
 
     private const string RootReadme = """
         # Hi, I'm Simone.
@@ -127,5 +177,4 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
 
         `j/k move · gx open link · - parent · :Ex explorer · ? help`
         """;
-
 }

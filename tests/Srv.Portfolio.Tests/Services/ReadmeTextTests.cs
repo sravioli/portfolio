@@ -1,27 +1,30 @@
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class ReadmeTextTests
+[TestFixture]
+internal sealed class ReadmeTextTests
 {
-    public static TheoryData<string, string[]> RawLineCases => new()
-    {
-        { "", [""] },
-        { "plain text", ["plain text"] },
-        { "first\nsecond", ["first", "second"] },
-        { "first\r\nsecond", ["first", "second"] },
-        { "first\rsecond", ["first\rsecond"] },
-        { "first\n", ["first", ""] },
-        { "first\r\n", ["first", ""] },
-        { "a\r\nb\nc\rd", ["a", "b", "c\rd"] },
-        { "\n\n", ["", "", ""] },
-        { "a\r\n\r\nb\n\n", ["a", "", "b", "", ""] }
-    };
+    public static IEnumerable<TestCaseData<string, string[]>> RawLineCases =>
+        [
+            new("", [""]),
+            new("plain text", ["plain text"]),
+            new("first\nsecond", ["first", "second"]),
+            new("first\r\nsecond", ["first", "second"]),
+            new("first\rsecond", ["first\rsecond"]),
+            new("first\n", ["first", ""]),
+            new("first\r\n", ["first", ""]),
+            new("a\r\nb\nc\rd", ["a", "b", "c\rd"]),
+            new("\n\n", ["", "", ""]),
+            new("a\r\n\r\nb\n\n", ["a", "", "b", "", ""]),
+        ];
 
-    [Theory]
-    [MemberData(nameof(RawLineCases))]
-    public void SplitRawLines_PreservesRawLinesAndTrailingEmptyEntries(string source, string[] expected)
+    [TestCaseSource(nameof(RawLineCases))]
+    public void SplitRawLinesPreservesRawLinesAndTrailingEmptyEntries(
+        string source,
+        string[] expected
+    )
     {
-        Assert.Equal(expected, ReadmeText.SplitRawLines(source));
+        Assert.That(ReadmeText.SplitRawLines(source), Is.EqualTo(expected));
     }
 }

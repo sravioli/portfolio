@@ -1,60 +1,83 @@
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class FileSearchTests
+[TestFixture]
+internal sealed class FileSearchTests
 {
-    [Fact]
-    public void Search_EmptyQuery_IncludesEveryCatalogEntryOnce()
+    [Test]
+    public void SearchEmptyQueryIncludesEveryCatalogEntryOnce()
     {
         var results = FileSearch.Search(string.Empty);
 
-        Assert.Equal(PortfolioCatalog.AllEntries().Count(), results.Count);
-        Assert.Equal(results.Count, results.Select(result => result.Path).Distinct().Count());
-        Assert.Contains(results, result => result.Path == "README.md" && result.Entry.IsRoot);
-        Assert.Contains(results, result => result.Path == "wezterm-plugins/nap.wz/README.md");
-        Assert.Contains(results, result => result.Entry.Repository == "nvim");
-        Assert.All(results, result => Assert.Empty(result.Matches));
+        Assert.That(results, Has.Count.EqualTo(PortfolioCatalog.AllEntries().Count()));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                results.Select(result => result.Path).Distinct().Count(),
+                Is.EqualTo(results.Count)
+            );
+            Assert.That(
+                results.Any(result => result.Path == "README.md" && result.Entry.IsRoot),
+                Is.True
+            );
+            Assert.That(
+                results.Any(result => result.Path == "wezterm-plugins/nap.wz/README.md"),
+                Is.True
+            );
+            Assert.That(results.Any(result => result.Entry.Repository == "nvim"), Is.True);
+        }
+        foreach (var result in results)
+            Assert.That(result.Matches, Is.Empty);
     }
 
-    [Theory]
-    [InlineData("chrono", "chrono")]
-    [InlineData("CHRONO", "chrono")]
-    [InlineData("chro rd", "chrono")]
-    [InlineData("chrd", "chord.wz")]
-    [InlineData("memo", "memo.wz")]
-    public void Search_FuzzyQuery_FindsExpectedRepository(string query, string repository)
+    [TestCase("chrono", "chrono")]
+    [TestCase("CHRONO", "chrono")]
+    [TestCase("chro rd", "chrono")]
+    [TestCase("chrd", "chord.wz")]
+    [TestCase("memo", "memo.wz")]
+    public void SearchFuzzyQueryFindsExpectedRepository(string query, string repository)
     {
         var results = FileSearch.Search(query);
 
-        var result = Assert.Single(results, item => item.Entry.Repository == repository);
-        var matched = string.Concat(result.Matches.Select(index => result.Path[index])).ToLowerInvariant();
-        Assert.Equal(string.Concat(query.Where(character => !char.IsWhiteSpace(character))).ToLowerInvariant(), matched);
-        Assert.Equal(result.Matches.Order(), result.Matches);
+        var matches = results.Where(item => item.Entry.Repository == repository).ToList();
+        Assert.That(matches, Has.Count.EqualTo(1));
+        var result = matches[0];
+        var matched = string.Concat(result.Matches.Select(index => result.Path[index]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                matched,
+                Is.EqualTo(
+                    string.Concat(query.Where(character => !char.IsWhiteSpace(character)))
+                ).IgnoreCase
+            );
+            Assert.That(result.Matches, Is.EqualTo(result.Matches.Order()));
+        }
     }
 
-    [Fact]
-    public void Search_ContiguousMatch_RanksAheadOfScatteredMatch()
+    [Test]
+    public void SearchContiguousMatchRanksAheadOfScatteredMatch()
     {
         var result = FileSearch.Search("chro");
 
-        Assert.Equal("chrono", result[0].Entry.Repository);
+        Assert.That(result[0].Entry.Repository, Is.EqualTo("chrono"));
     }
 
-    [Theory]
-    [InlineData("no-such-file")]
-    [InlineData("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")]
-    public void Search_NoMatches_ReturnsEmptyResults(string query)
+    [TestCase("no-such-file")]
+    [TestCase("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")]
+    public void SearchNoMatchesReturnsEmptyResults(string query)
     {
-        Assert.Empty(FileSearch.Search(query));
+        Assert.That(FileSearch.Search(query), Is.Empty);
     }
 
-    [Fact]
-    public void Search_WhitespaceQuery_ReturnsAllEntriesWithoutHighlights()
+    [Test]
+    public void SearchWhitespaceQueryReturnsAllEntriesWithoutHighlights()
     {
         var results = FileSearch.Search(" \t ");
 
-        Assert.Equal(PortfolioCatalog.AllEntries().Count(), results.Count);
-        Assert.All(results, result => Assert.Empty(result.Matches));
+        Assert.That(results, Has.Count.EqualTo(PortfolioCatalog.AllEntries().Count()));
+        foreach (var result in results)
+            Assert.That(result.Matches, Is.Empty);
     }
 }

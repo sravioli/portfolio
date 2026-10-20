@@ -2,7 +2,7 @@ using Srv.Portfolio.Models;
 
 namespace Srv.Portfolio.Services;
 
-public static class PortfolioCatalog
+internal static class PortfolioCatalog
 {
     private static readonly PortfolioEntry Root = new(
         "sravioli",
@@ -29,23 +29,28 @@ public static class PortfolioCatalog
                     Plugin("ribbon", "Styled text segments for WezTerm UI."),
                     Plugin("sigil", "Icons and identity colors."),
                     Plugin("warden", "Schema validation for plugins and configuration."),
-                    Plugin("warp", "Utilities for WezTerm.")
+                    Plugin("warp", "Utilities for WezTerm."),
                 ],
-                IsReadmeLocal: true)
+                IsReadmeLocal: true
+            ),
         ],
-        IsReadmeLocal: true);
+        IsReadmeLocal: true
+    );
 
     public static PortfolioEntry RootEntry => Root;
 
     public static PortfolioEntry? Find(string repository)
     {
+        ArgumentNullException.ThrowIfNull(repository);
         if (repository.Length == 0)
         {
             return Root;
         }
 
-        return Descendants(Root).FirstOrDefault(entry =>
-            string.Equals(entry.Repository, repository, StringComparison.OrdinalIgnoreCase));
+        return Descendants(Root)
+            .FirstOrDefault(entry =>
+                string.Equals(entry.Repository, repository, StringComparison.OrdinalIgnoreCase)
+            );
     }
 
     public static PortfolioEntry? FindParent(PortfolioEntry child) =>
@@ -53,6 +58,7 @@ public static class PortfolioCatalog
 
     public static IReadOnlyList<ExplorerItem> GetListing(PortfolioEntry folder)
     {
+        ArgumentNullException.ThrowIfNull(folder);
         var items = new List<ExplorerItem>();
         if (!folder.IsRoot)
         {
@@ -64,20 +70,25 @@ public static class PortfolioCatalog
             items.Add(new ExplorerItem("README.md", ExplorerItemKind.Readme, folder));
         }
 
-        items.AddRange(folder.Children.Select(child => child.IsProjectFile
-            ? new ExplorerItem(child.Name, ExplorerItemKind.ProjectFile, child)
-            : new ExplorerItem(child.Name + "/", ExplorerItemKind.Folder, child)));
+        items.AddRange(
+            folder.Children.Select(child =>
+                child.IsProjectFile
+                    ? new ExplorerItem(child.Name, ExplorerItemKind.ProjectFile, child)
+                    : new ExplorerItem(child.Name + "/", ExplorerItemKind.Folder, child)
+            )
+        );
         return items;
     }
 
     public static IReadOnlyList<string> GetPath(PortfolioEntry entry) =>
-        GetAncestry(entry).Select(ancestor => ancestor.Name).ToArray();
+        [.. GetAncestry(entry).Select(ancestor => ancestor.Name)];
 
     internal static IEnumerable<ExplorerItem> GetContentListing(PortfolioEntry folder) =>
         GetListing(folder).Where(item => item.Kind != ExplorerItemKind.Parent);
 
     public static IReadOnlyList<PortfolioEntry> GetAncestry(PortfolioEntry entry)
     {
+        ArgumentNullException.ThrowIfNull(entry);
         var entries = new Stack<PortfolioEntry>();
         var current = entry;
         while (!current.IsRoot)
@@ -86,11 +97,14 @@ public static class PortfolioCatalog
             current = FindParent(current) ?? Root;
         }
 
-        return new[] { Root }.Concat(entries).ToArray();
+        return [Root, .. entries];
     }
 
-    public static string PickKey(PortfolioEntry entry) =>
-        (entry.IsProjectFile ? "file:" : "folder:") + entry.Repository;
+    public static string PickKey(PortfolioEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return (entry.IsProjectFile ? "file:" : "folder:") + entry.Repository;
+    }
 
     public static IReadOnlyList<PickMenuItem> GetPickMenu(string repository)
     {
@@ -100,18 +114,36 @@ public static class PortfolioCatalog
             return [];
         }
 
-        return GetContentListing(folder)
-            .Select(item => item.Kind switch
-            {
-                ExplorerItemKind.Readme => new PickMenuItem(
-                    "readme:" + item.Entry!.Repository, item.Name, item.Entry.Repository, "readme", false),
-                ExplorerItemKind.ProjectFile => new PickMenuItem(
-                    PickKey(item.Entry!), item.Name, item.Entry!.Repository, "file", false),
-                _ => new PickMenuItem(
-                    PickKey(item.Entry!), item.Entry!.Name, item.Entry.Repository, "folder",
-                    item.Entry.HasReadme || item.Entry.Children.Count > 0)
-            })
-            .ToArray();
+        return
+        [
+            .. GetContentListing(folder)
+                .Select(item =>
+                    item.Kind switch
+                    {
+                        ExplorerItemKind.Readme => new PickMenuItem(
+                            "readme:" + item.Entry!.Repository,
+                            item.Name,
+                            item.Entry.Repository,
+                            "readme",
+                            false
+                        ),
+                        ExplorerItemKind.ProjectFile => new PickMenuItem(
+                            PickKey(item.Entry!),
+                            item.Name,
+                            item.Entry!.Repository,
+                            "file",
+                            false
+                        ),
+                        _ => new PickMenuItem(
+                            PickKey(item.Entry!),
+                            item.Entry!.Name,
+                            item.Entry.Repository,
+                            "folder",
+                            item.Entry.HasReadme || item.Entry.Children.Count > 0
+                        ),
+                    }
+                ),
+        ];
     }
 
     public static IEnumerable<PortfolioEntry> AllEntries() => Descendants(Root).Prepend(Root);
@@ -128,9 +160,15 @@ public static class PortfolioCatalog
         }
     }
 
-    private static PortfolioEntry Project(string name, string description, string? readmePath = ".github/readme.md") =>
-        new(name, name, description, readmePath, []);
+    private static PortfolioEntry Project(
+        string name,
+        string description,
+        string? readmePath = ".github/readme.md"
+    ) => new(name, name, description, readmePath, []);
 
-    private static PortfolioEntry Plugin(string name, string description, string readmePath = ".github/readme.md") =>
-        new(name + ".wz", name + ".wz", description, readmePath, [], IsProjectFile: true);
+    private static PortfolioEntry Plugin(
+        string name,
+        string description,
+        string readmePath = ".github/readme.md"
+    ) => new(name + ".wz", name + ".wz", description, readmePath, [], IsProjectFile: true);
 }

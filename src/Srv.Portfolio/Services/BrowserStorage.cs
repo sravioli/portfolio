@@ -2,7 +2,7 @@ using Microsoft.JSInterop;
 
 namespace Srv.Portfolio.Services;
 
-public interface IBrowserStorage
+internal interface IBrowserStorage
 {
     ValueTask<string?> GetAsync(string key);
 
@@ -10,13 +10,15 @@ public interface IBrowserStorage
 }
 
 // Storage can be disabled or full (private mode, quotas); callers treat it as best effort.
-public sealed class BrowserStorage(IJSRuntime jsRuntime) : IBrowserStorage
+internal sealed class BrowserStorage(IJSRuntime jsRuntime) : IBrowserStorage
 {
     public async ValueTask<string?> GetAsync(string key)
     {
         try
         {
-            return await jsRuntime.InvokeAsync<string?>("localStorage.getItem", key);
+            return await jsRuntime
+                .InvokeAsync<string?>("localStorage.getItem", key)
+                .ConfigureAwait(true);
         }
         catch (JSException)
         {
@@ -28,10 +30,10 @@ public sealed class BrowserStorage(IJSRuntime jsRuntime) : IBrowserStorage
     {
         try
         {
-            await jsRuntime.InvokeVoidAsync("localStorage.setItem", key, value);
+            await jsRuntime
+                .InvokeVoidAsync("localStorage.setItem", key, value)
+                .ConfigureAwait(true);
         }
-        catch (JSException)
-        {
-        }
+        catch (JSException) { }
     }
 }

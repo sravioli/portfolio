@@ -1,6 +1,6 @@
 namespace Srv.Portfolio.Services;
 
-public enum KeyAction
+internal enum KeyAction
 {
     Ignored,
     Changed,
@@ -30,15 +30,16 @@ public enum KeyAction
     FollowLink,
     OpenLink,
     JumpBack,
-    JumpForward
+    JumpForward,
 }
 
-public sealed class KeymapHandler
+internal sealed class KeymapHandler
 {
     private bool _waitingForSecondG;
 
     public KeyAction Handle(NavigationState state, string key, bool explorerFocused = false)
     {
+        ArgumentNullException.ThrowIfNull(state);
         if (!state.KeyboardEnabled)
         {
             _waitingForSecondG = false;
@@ -96,7 +97,9 @@ public sealed class KeymapHandler
             case "<C-i>":
                 return state.IsReading ? KeyAction.JumpForward : KeyAction.Ignored;
             case "gx":
-                return state.IsReading || state.IsWelcome ? KeyAction.FollowLink : KeyAction.Ignored;
+                return state.IsReading || state.IsWelcome
+                    ? KeyAction.FollowLink
+                    : KeyAction.Ignored;
         }
 
         if (key == "x" && waitingForSecondG && state.IsWelcome)
@@ -117,7 +120,7 @@ public sealed class KeymapHandler
                 "0" => KeyAction.LineStart,
                 "$" => KeyAction.LineEnd,
                 "Enter" => KeyAction.OpenLink,
-                _ => KeyAction.Ignored
+                _ => KeyAction.Ignored,
             };
             if (cursorAction != KeyAction.Ignored)
             {

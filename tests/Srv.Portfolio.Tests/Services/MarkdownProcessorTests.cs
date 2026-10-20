@@ -1,42 +1,49 @@
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class MarkdownProcessorTests
+[TestFixture]
+internal sealed class MarkdownProcessorTests
 {
-    private readonly MarkdownProcessor _processor = new();
-
-    [Fact]
-    public void Render_StandaloneGithubAttachment_EmbedsControlledVideoAndFallbackLink()
+    [Test]
+    public void RenderStandaloneGithubAttachmentEmbedsControlledVideoAndFallbackLink()
     {
-        const string url = "https://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b";
+        const string url =
+            "https://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b";
 
-        var html = _processor.Render($"<{url}>", PortfolioCatalog.Find("wezterm")!);
+        var html = MarkdownProcessor.Render($"<{url}>", PortfolioCatalog.Find("wezterm")!);
 
-        Assert.Contains($"<video src=\"{url}\"", html);
-        Assert.Contains("controls", html);
-        Assert.Contains("playsinline", html);
-        Assert.Contains("preload=\"none\"", html);
-        Assert.Contains($"href=\"{url}\">Open video on GitHub</a>", html);
-        Assert.DoesNotContain("autoplay", html);
+        Assert.That(html, Does.Contain($"<video src=\"{url}\""));
+        Assert.That(html, Does.Contain("controls"));
+        Assert.That(html, Does.Contain("playsinline"));
+        Assert.That(html, Does.Contain("preload=\"none\""));
+        Assert.That(html, Does.Contain($"href=\"{url}\">Open video on GitHub</a>"));
+        Assert.That(html, Does.Not.Contain("autoplay"));
     }
 
-    [Theory]
-    [InlineData("[Download](https://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b)")]
-    [InlineData("See <https://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b> for details.")]
-    [InlineData("<https://github.com.example.test/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b>")]
-    [InlineData("<http://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b>")]
-    [InlineData("<https://github.com/user-attachments/assets/not-an-attachment>")]
-    [InlineData("![Screenshot](https://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b)")]
-    public void Render_OtherLinksAndImages_DoesNotEmbedVideo(string markdown)
+    [TestCase(
+        "[Download](https://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b)"
+    )]
+    [TestCase(
+        "See <https://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b> for details."
+    )]
+    [TestCase(
+        "<https://github.com.example.test/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b>"
+    )]
+    [TestCase("<http://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b>")]
+    [TestCase("<https://github.com/user-attachments/assets/not-an-attachment>")]
+    [TestCase(
+        "![Screenshot](https://github.com/user-attachments/assets/d8bd96f1-53d6-4fb0-9771-53ca8ecd604b)"
+    )]
+    public void RenderOtherLinksAndImagesDoesNotEmbedVideo(string markdown)
     {
-        var html = _processor.Render(markdown, PortfolioCatalog.RootEntry);
+        var html = MarkdownProcessor.Render(markdown, PortfolioCatalog.RootEntry);
 
-        Assert.DoesNotContain("<video", html, StringComparison.OrdinalIgnoreCase);
+        Assert.That(html, Does.Not.Contain("<video").IgnoreCase);
     }
 
-    [Fact]
-    public void Render_UnsafeHtmlAndAttributes_RemovesThem()
+    [Test]
+    public void RenderUnsafeHtmlAndAttributesRemovesThem()
     {
         const string markdown = """
             # Safe
@@ -46,22 +53,22 @@ public sealed class MarkdownProcessorTests
             <p style="color:red" onclick="alert(1)">Text</p>
             """;
 
-        var html = _processor.Render(markdown, PortfolioCatalog.RootEntry);
+        var html = MarkdownProcessor.Render(markdown, PortfolioCatalog.RootEntry);
 
-        Assert.DoesNotContain("<script", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<iframe", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<style", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<form", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<video", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<audio", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<source", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("style=", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("onclick=", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("id=\"readme-safe\"", html, StringComparison.Ordinal);
+        Assert.That(html, Does.Not.Contain("<script").IgnoreCase);
+        Assert.That(html, Does.Not.Contain("<iframe").IgnoreCase);
+        Assert.That(html, Does.Not.Contain("<style").IgnoreCase);
+        Assert.That(html, Does.Not.Contain("<form").IgnoreCase);
+        Assert.That(html, Does.Not.Contain("<video").IgnoreCase);
+        Assert.That(html, Does.Not.Contain("<audio").IgnoreCase);
+        Assert.That(html, Does.Not.Contain("<source").IgnoreCase);
+        Assert.That(html, Does.Not.Contain("style=").IgnoreCase);
+        Assert.That(html, Does.Not.Contain("onclick=").IgnoreCase);
+        Assert.That(html, Does.Contain("id=\"readme-safe\""));
     }
 
-    [Fact]
-    public void Render_RelativeResourcesAndRepositoryLinks_RewritesThem()
+    [Test]
+    public void RenderRelativeResourcesAndRepositoryLinksRewritesThem()
     {
         const string markdown = """
             [relative](guide.md)
@@ -71,110 +78,149 @@ public sealed class MarkdownProcessorTests
             [project](https://github.com/sravioli/chrono/blob/main/.github/readme.md)
             """;
 
-        var html = _processor.Render(markdown, PortfolioCatalog.Find("chrono")!);
+        var html = MarkdownProcessor.Render(markdown, PortfolioCatalog.Find("chrono")!);
 
-        Assert.Contains("https://github.com/sravioli/chrono/blob/main/.github/guide.md", html);
-        Assert.Contains("https://example.test/image.png", html);
-        Assert.Contains("loading=\"lazy\"", html);
-        Assert.Contains("referrerpolicy=\"no-referrer\"", html);
-        Assert.Contains("data-internal-repo=\"chrono\"", html);
-        Assert.Contains("title=\"Open chrono here\"", html);
+        Assert.That(
+            html,
+            Does.Contain("https://github.com/sravioli/chrono/blob/main/.github/guide.md")
+        );
+        Assert.That(html, Does.Contain("https://example.test/image.png"));
+        Assert.That(html, Does.Contain("loading=\"lazy\""));
+        Assert.That(html, Does.Contain("referrerpolicy=\"no-referrer\""));
+        Assert.That(html, Does.Contain("data-internal-repo=\"chrono\""));
+        Assert.That(html, Does.Contain("title=\"Open chrono here\""));
     }
 
-    [Fact]
-    public void Render_RelativeImageInGithubDirectory_IncludesMainBranchInRawUrl()
+    [Test]
+    public void RenderRelativeImageInGithubDirectoryIncludesMainBranchInRawUrl()
     {
         const string markdown = "![Help mode](./imgs/showcase-mode-help.png)";
 
-        var html = _processor.Render(markdown, PortfolioCatalog.Find("wezterm")!);
+        var html = MarkdownProcessor.Render(markdown, PortfolioCatalog.Find("wezterm")!);
 
-        Assert.Contains(
-            "src=\"https://raw.githubusercontent.com/sravioli/wezterm/main/.github/imgs/showcase-mode-help.png\"",
+        Assert.That(
             html,
-            StringComparison.Ordinal);
+            Does.Contain(
+                "src=\"https://raw.githubusercontent.com/sravioli/wezterm/main/.github/imgs/showcase-mode-help.png\""
+            )
+        );
     }
 
-    [Theory]
-    [InlineData("", "docs/guide.md", "docs/guide.md")]
-    [InlineData("nvim", "guide.md", "guide.md")]
-    [InlineData("chrono", "../docs/guide%20one.md", "docs/guide%20one.md")]
-    [InlineData("chrono", "../../guide.md", "guide.md")]
-    [InlineData("chrono", "/docs/./guide.md", "docs/guide.md")]
-    [InlineData("nap.wz", "./images/demo.png", "images/demo.png")]
-    public void Render_RelativeResources_PreservesRepositoryAndNormalizedPaths(
-        string repository, string resource, string expectedPath)
+    [TestCase("", "docs/guide.md", "docs/guide.md")]
+    [TestCase("nvim", "guide.md", "guide.md")]
+    [TestCase("chrono", "../docs/guide%20one.md", "docs/guide%20one.md")]
+    [TestCase("chrono", "../../guide.md", "guide.md")]
+    [TestCase("chrono", "/docs/./guide.md", "docs/guide.md")]
+    [TestCase("nap.wz", "./images/demo.png", "images/demo.png")]
+    public void RenderRelativeResourcesPreservesRepositoryAndNormalizedPaths(
+        string repository,
+        string resource,
+        string expectedPath
+    )
     {
-        var html = _processor.Render(
+        ArgumentNullException.ThrowIfNull(repository);
+        var html = MarkdownProcessor.Render(
             $"[Document]({resource})\n\n![Image]({resource})",
-            PortfolioCatalog.Find(repository)!);
+            PortfolioCatalog.Find(repository)!
+        );
         var expectedRepository = repository.Length == 0 ? "sravioli" : repository;
 
-        Assert.Contains($"href=\"https://github.com/sravioli/{expectedRepository}/blob/main/{expectedPath}\"", html);
-        Assert.Contains($"src=\"https://raw.githubusercontent.com/sravioli/{expectedRepository}/main/{expectedPath}\"", html);
+        Assert.That(
+            html,
+            Does.Contain(
+                $"href=\"https://github.com/sravioli/{expectedRepository}/blob/main/{expectedPath}\""
+            )
+        );
+        Assert.That(
+            html,
+            Does.Contain(
+                $"src=\"https://raw.githubusercontent.com/sravioli/{expectedRepository}/main/{expectedPath}\""
+            )
+        );
     }
 
-    [Fact]
-    public void Render_AbsoluteResources_PreservesExternalUrls()
+    [Test]
+    public void RenderAbsoluteResourcesPreservesExternalUrls()
     {
-        var html = _processor.Render(
+        var html = MarkdownProcessor.Render(
             "[Document](https://example.test/docs/guide.md)\n\n![Image](https://example.test/images/demo.png)",
-            PortfolioCatalog.Find("chrono")!);
+            PortfolioCatalog.Find("chrono")!
+        );
 
-        Assert.Contains("href=\"https://example.test/docs/guide.md\"", html);
-        Assert.Contains("src=\"https://example.test/images/demo.png\"", html);
-        Assert.DoesNotContain("data-internal-repo", html);
+        Assert.That(html, Does.Contain("href=\"https://example.test/docs/guide.md\""));
+        Assert.That(html, Does.Contain("src=\"https://example.test/images/demo.png\""));
+        Assert.That(html, Does.Not.Contain("data-internal-repo"));
     }
 
-    [Theory]
-    [InlineData("https://github.com/sravioli/chrono")]
-    [InlineData("https://github.com/sravioli/chrono/")]
-    [InlineData("https://github.com/sravioli/chrono.git")]
-    [InlineData("https://github.com/sravioli/chrono/tree/main")]
-    [InlineData("https://github.com/sravioli/chrono/blob/main/README.md")]
-    [InlineData("https://github.com/sravioli/chrono/blob/main/.github/readme.md")]
-    [InlineData("https://GITHUB.COM/SRAVIOLI/chrono.git/TREE/MAIN")]
-    public void Render_CatalogRepositoryLinks_PreservesInternalNavigation(string url)
+    public static IEnumerable<Uri> CatalogRepositoryLinks { get; } =
+    [
+        new Uri("https://github.com/sravioli/chrono"),
+        new Uri("https://github.com/sravioli/chrono/"),
+        new Uri("https://github.com/sravioli/chrono.git"),
+        new Uri("https://github.com/sravioli/chrono/tree/main"),
+        new Uri("https://github.com/sravioli/chrono/blob/main/README.md"),
+        new Uri("https://github.com/sravioli/chrono/blob/main/.github/readme.md"),
+        new Uri("https://GITHUB.COM/SRAVIOLI/chrono.git/TREE/MAIN"),
+    ];
+
+    [TestCaseSource(nameof(CatalogRepositoryLinks))]
+    public void RenderCatalogRepositoryLinksPreservesInternalNavigation(Uri url)
     {
-        var html = _processor.Render($"[Project]({url})", PortfolioCatalog.RootEntry);
+        ArgumentNullException.ThrowIfNull(url);
+        var html = MarkdownProcessor.Render(
+            $"[Project]({url.OriginalString})",
+            PortfolioCatalog.RootEntry
+        );
 
-        Assert.Contains("data-internal-repo=\"chrono\"", html);
-        Assert.Contains("title=\"Open chrono here\"", html);
+        Assert.That(html, Does.Contain("data-internal-repo=\"chrono\""));
+        Assert.That(html, Does.Contain("title=\"Open chrono here\""));
     }
 
-    [Theory]
-    [InlineData("https://github.com/sravioli/chrono/issues")]
-    [InlineData("https://github.com/sravioli/chrono/tree/develop")]
-    [InlineData("https://github.com/sravioli/chrono/blob/main/docs/README.md")]
-    [InlineData("https://github.com/sravioli/chrono/blob/main/guide.md")]
-    [InlineData("https://github.com/sravioli/unknown")]
-    [InlineData("https://github.com/another-owner/chrono")]
-    [InlineData("https://github.com.example.test/sravioli/chrono")]
-    public void Render_OtherRepositoryLinks_PreservesExternalNavigation(string url)
+    public static IEnumerable<Uri> OtherRepositoryLinks { get; } =
+    [
+        new Uri("https://github.com/sravioli/chrono/issues"),
+        new Uri("https://github.com/sravioli/chrono/tree/develop"),
+        new Uri("https://github.com/sravioli/chrono/blob/main/docs/README.md"),
+        new Uri("https://github.com/sravioli/chrono/blob/main/guide.md"),
+        new Uri("https://github.com/sravioli/unknown"),
+        new Uri("https://github.com/another-owner/chrono"),
+        new Uri("https://github.com.example.test/sravioli/chrono"),
+    ];
+
+    [TestCaseSource(nameof(OtherRepositoryLinks))]
+    public void RenderOtherRepositoryLinksPreservesExternalNavigation(Uri url)
     {
-        var html = _processor.Render($"[Project]({url})", PortfolioCatalog.RootEntry);
+        ArgumentNullException.ThrowIfNull(url);
+        var html = MarkdownProcessor.Render(
+            $"[Project]({url.OriginalString})",
+            PortfolioCatalog.RootEntry
+        );
 
-        Assert.Contains($"href=\"{url}\"", html);
-        Assert.DoesNotContain("data-internal-repo", html);
+        Assert.That(html, Does.Contain($"href=\"{url.OriginalString}\""));
+        Assert.That(html, Does.Not.Contain("data-internal-repo"));
     }
 
-    [Fact]
-    public void Render_DuplicateHeadingSlugs_AreDisambiguated()
+    [Test]
+    public void RenderDuplicateHeadingSlugsAreDisambiguated()
     {
         const string markdown = "## Intro\n\n## Intro\n\n[First](#intro)";
 
-        var html = _processor.Render(markdown, PortfolioCatalog.RootEntry);
+        var html = MarkdownProcessor.Render(markdown, PortfolioCatalog.RootEntry);
 
-        Assert.Contains("id=\"readme-intro\"", html);
-        Assert.Contains("id=\"readme-intro-1\"", html);
-        Assert.Contains("href=\"#readme-intro\"", html);
+        Assert.That(html, Does.Contain("id=\"readme-intro\""));
+        Assert.That(html, Does.Contain("id=\"readme-intro-1\""));
+        Assert.That(html, Does.Contain("href=\"#readme-intro\""));
     }
 
-    [Fact]
-    public void Render_MissingHeadingLink_MarksItForTheUserMessage()
+    [Test]
+    public void RenderMissingHeadingLinkMarksItForTheUserMessage()
     {
-        var html = _processor.Render("[Missing](#no-such-heading)", PortfolioCatalog.RootEntry);
+        var html = MarkdownProcessor.Render(
+            "[Missing](#no-such-heading)",
+            PortfolioCatalog.RootEntry
+        );
 
-        Assert.Contains("data-missing-anchor=\"no-such-heading\"", html);
-        Assert.DoesNotContain("href=\"#no-such-heading\"", html);
+        Assert.That(html, Does.Contain("data-missing-anchor=\"no-such-heading\""));
+        Assert.That(html, Does.Not.Contain("href=\"#no-such-heading\""));
     }
 }

@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace Srv.Portfolio.Services;
 
-public enum CommandAction
+internal enum CommandAction
 {
     None,
     ReturnToListing,
@@ -11,22 +11,19 @@ public enum CommandAction
     SetKeyboard,
     SetDevNotation,
     Reload,
-    Invalid
+    Invalid,
 }
 
-public sealed class CommandHandler
+internal static partial class CommandHandler
 {
-    public CommandAction Handle(NavigationState state, string commandText)
+    public static CommandAction Handle(NavigationState state, string commandText)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(commandText);
 
         var command = commandText.TrimStart(':').Trim();
         state.EndCommand();
-        var leaderAssignment = Regex.Match(
-            command,
-            """^(?:let\s+(?:g:)?mapleader|lua\s+vim\.g\.mapleader)\s*=\s*(["'])(.*?)\1$""",
-            RegexOptions.CultureInvariant);
+        var leaderAssignment = LeaderAssignmentRegex().Match(command);
         if (leaderAssignment.Success)
         {
             var leader = leaderAssignment.Groups[2].Value;
@@ -34,35 +31,41 @@ public sealed class CommandHandler
             {
                 "<Space>" => " ",
                 "<Bslash>" or "\\\\" => "\\",
-                _ => leader
+                _ => leader,
             };
             if (leader.Length == 1 && !char.IsControl(leader[0]) && !char.IsSurrogate(leader[0]))
             {
                 state.Leader = leader;
-                state.Message = $"Leader set to {state.LeaderLabel}. Press {state.LeaderLabel} then e to focus the explorer.";
+                state.Message =
+                    $"Leader set to {state.LeaderLabel}. Press {state.LeaderLabel} then e to focus the explorer.";
                 return CommandAction.SetLeader;
             }
 
-            state.Message = "Leader must be one printable key. Use :let mapleader = \" \" for Space.";
+            state.Message =
+                "Leader must be one printable key. Use :let mapleader = \" \" for Space.";
             return CommandAction.Invalid;
         }
 
-        if (command.Equals("Ex", StringComparison.OrdinalIgnoreCase) ||
-            command.Equals("Explore", StringComparison.OrdinalIgnoreCase) ||
-            command.Equals("q", StringComparison.OrdinalIgnoreCase))
+        if (
+            command.Equals("Ex", StringComparison.OrdinalIgnoreCase)
+            || command.Equals("Explore", StringComparison.OrdinalIgnoreCase)
+            || command.Equals("q", StringComparison.OrdinalIgnoreCase)
+        )
         {
             state.GoToParent();
             return CommandAction.ReturnToListing;
         }
 
-        if (command.Equals("help", StringComparison.OrdinalIgnoreCase) ||
-            command.Equals("h", StringComparison.OrdinalIgnoreCase))
+        if (
+            command.Equals("help", StringComparison.OrdinalIgnoreCase)
+            || command.Equals("h", StringComparison.OrdinalIgnoreCase)
+        )
         {
             state.IsHelpOpen = true;
             return CommandAction.OpenHelp;
         }
 
-        var booleanOption = Regex.Match(command, @"^set?\s+(no|inv)?(keys|dev)(!)?$", RegexOptions.CultureInvariant);
+        var booleanOption = BooleanOptionRegex().Match(command);
         if (booleanOption.Success)
         {
             var isKeys = booleanOption.Groups[2].Value == "keys";
@@ -71,13 +74,14 @@ public sealed class CommandHandler
             {
                 "no" => false,
                 "inv" => !current,
-                _ => !booleanOption.Groups[3].Success || !current
+                _ => !booleanOption.Groups[3].Success || !current,
             };
             if (!isKeys)
             {
                 state.DevNotation = value;
-                state.Message = $"{(value ? "Vim" : "Plain")} notation: " +
-                    $"{KeyNotation.Leader("ff", value, state.LeaderLabel)}, {KeyNotation.Control('d', value)}.";
+                state.Message =
+                    $"{(value ? "Vim" : "Plain")} notation: "
+                    + $"{KeyNotation.Leader("ff", value, state.LeaderLabel)}, {KeyNotation.Control('d', value)}.";
                 return CommandAction.SetDevNotation;
             }
 
@@ -85,8 +89,10 @@ public sealed class CommandHandler
             return CommandAction.SetKeyboard;
         }
 
-        if (command.Equals("e", StringComparison.OrdinalIgnoreCase) ||
-            command.Equals("edit", StringComparison.OrdinalIgnoreCase))
+        if (
+            command.Equals("e", StringComparison.OrdinalIgnoreCase)
+            || command.Equals("edit", StringComparison.OrdinalIgnoreCase)
+        )
         {
             if (state.CurrentDocument is null)
             {
@@ -105,4 +111,13 @@ public sealed class CommandHandler
 
         return CommandAction.None;
     }
+
+    [GeneratedRegex(
+        """^(?:let\s+(?:g:)?mapleader|lua\s+vim\.g\.mapleader)\s*=\s*(["'])(.*?)\1$""",
+        RegexOptions.CultureInvariant
+    )]
+    private static partial Regex LeaderAssignmentRegex();
+
+    [GeneratedRegex(@"^set?\s+(no|inv)?(keys|dev)(!)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex BooleanOptionRegex();
 }

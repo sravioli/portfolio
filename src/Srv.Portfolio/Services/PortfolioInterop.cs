@@ -1,9 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 namespace Srv.Portfolio.Services;
 
-public sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
+internal sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 {
     private const string ModulePath = "./Pages/Home.razor.js";
     private const string InitializeMethod = "initialize";
@@ -22,23 +23,29 @@ public sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 
     private IJSObjectReference? _module;
 
-    public async ValueTask InitializeAsync<T>(DotNetObjectReference<T> dotNetReference, bool keyboardEnabled, string leader) where T : class
+    public async ValueTask InitializeAsync<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] T
+    >(DotNetObjectReference<T> dotNetReference, bool keyboardEnabled, string leader)
+        where T : class
     {
-        _module = await jsRuntime.InvokeAsync<IJSObjectReference>("import", ModulePath);
-        await _module.InvokeVoidAsync(InitializeMethod, dotNetReference, keyboardEnabled, leader);
+        _module = await jsRuntime
+            .InvokeAsync<IJSObjectReference>("import", ModulePath)
+            .ConfigureAwait(true);
+        await _module
+            .InvokeVoidAsync(InitializeMethod, dotNetReference, keyboardEnabled, leader)
+            .ConfigureAwait(true);
     }
 
     public ValueTask SetKeyboardEnabledAsync(bool enabled) =>
         _module.InvokeVoidIfLoadedAsync(SetKeyboardMethod, enabled);
 
-    public ValueTask RefreshPreviewAsync() =>
-        _module.InvokeVoidIfLoadedAsync(RefreshMethod);
+    public ValueTask RefreshPreviewAsync() => _module.InvokeVoidIfLoadedAsync(RefreshMethod);
 
     public ValueTask MoveCursorAsync(string motion) =>
         _module.InvokeVoidIfLoadedAsync(MoveCursorMethod, motion);
 
     public ValueTask<bool> FollowLinkAsync(bool fallbackDown) =>
-        _module.InvokeIfLoadedAsync(FollowLinkMethod, false, fallbackDown);
+        _module.InvokeBooleanIfLoadedAsync(FollowLinkMethod, false, fallbackDown);
 
     public ValueTask JumpAsync(int direction) =>
         _module.InvokeVoidIfLoadedAsync(JumpMethod, direction);
@@ -47,13 +54,11 @@ public sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
         _module.InvokeVoidIfLoadedAsync(JumpHeadingMethod, direction);
 
     public ValueTask<bool> CopyTextAsync(string text) =>
-        _module.InvokeIfLoadedAsync(CopyTextMethod, false, text);
+        _module.InvokeBooleanIfLoadedAsync(CopyTextMethod, false, text);
 
-    public ValueTask FocusCommandAsync() =>
-        _module.InvokeVoidIfLoadedAsync(FocusCommandMethod);
+    public ValueTask FocusCommandAsync() => _module.InvokeVoidIfLoadedAsync(FocusCommandMethod);
 
-    public ValueTask FocusPreviewAsync() =>
-        _module.InvokeVoidIfLoadedAsync(FocusPreviewMethod);
+    public ValueTask FocusPreviewAsync() => _module.InvokeVoidIfLoadedAsync(FocusPreviewMethod);
 
     public ValueTask FocusExplorerAsync(ElementReference explorer) =>
         _module.InvokeVoidIfLoadedAsync(FocusExplorerMethod, explorer);
@@ -66,7 +71,7 @@ public sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await _module.DisposeModuleAsync();
+        await _module.DisposeModuleAsync().ConfigureAwait(true);
         _module = null;
     }
 }

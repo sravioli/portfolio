@@ -1,71 +1,107 @@
 using Srv.Portfolio.Models;
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class PortfolioCatalogTests
+[TestFixture]
+internal sealed class PortfolioCatalogTests
 {
-    [Fact]
-    public void GetListing_Root_ReturnsReadmeThenProjectsInOrder()
+    [Test]
+    public void GetListingRootReturnsReadmeThenProjectsInOrder()
     {
-        var names = PortfolioCatalog.GetListing(PortfolioCatalog.RootEntry)
+        var names = PortfolioCatalog
+            .GetListing(PortfolioCatalog.RootEntry)
             .Select(item => item.Name);
 
-        Assert.Equal(
-            ["README.md", "chrono/", "nvim/", "wezterm/", "wezterm-plugins/"],
-            names);
+        Assert.That(
+            names,
+            Is.EqualTo(
+                new object?[] { "README.md", "chrono/", "nvim/", "wezterm/", "wezterm-plugins/" }
+            )
+        );
     }
 
-    [Fact]
-    public void GetListing_PluginFolder_ReturnsParentReadmeAndAllPlugins()
+    [Test]
+    public void GetListingPluginFolderReturnsParentReadmeAndAllPlugins()
     {
         var folder = PortfolioCatalog.Find("wezterm-plugins")!;
         var listing = PortfolioCatalog.GetListing(folder);
 
-        Assert.Equal("../", listing[0].Name);
-        Assert.Equal("README.md", listing[1].Name);
-        Assert.Equal(11, listing.Count - 2);
-        Assert.Contains(listing, item => item.Name == "memo.wz" && item.Kind == ExplorerItemKind.ProjectFile);
-        Assert.Equal("README.md", PortfolioCatalog.Find("nap.wz")!.ReadmePath);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(listing[0].Name, Is.EqualTo("../"));
+            Assert.That(listing[1].Name, Is.EqualTo("README.md"));
+            Assert.That(listing.Count - 2, Is.EqualTo(11));
+            Assert.That(
+                listing.Any(item =>
+                    item.Name == "memo.wz" && item.Kind == ExplorerItemKind.ProjectFile
+                ),
+                Is.True
+            );
+            Assert.That(PortfolioCatalog.Find("nap.wz")!.ReadmePath, Is.EqualTo("README.md"));
+        }
     }
 
-    [Fact]
-    public void GetListing_Nvim_DoesNotInventAReadme()
+    [Test]
+    public void GetListingNvimDoesNotInventAReadme()
     {
         var listing = PortfolioCatalog.GetListing(PortfolioCatalog.Find("nvim")!);
 
-        Assert.Single(listing);
-        Assert.Equal(ExplorerItemKind.Parent, listing[0].Kind);
+        Assert.That(listing, Has.Count.EqualTo(1));
+        Assert.That(listing[0].Kind, Is.EqualTo(ExplorerItemKind.Parent));
     }
 
-    [Fact]
-    public void GetAncestry_PluginFile_ReturnsRootToEntry()
+    [Test]
+    public void GetAncestryPluginFileReturnsRootToEntry()
     {
         var ancestry = PortfolioCatalog.GetAncestry(PortfolioCatalog.Find("memo.wz")!);
 
-        Assert.Equal(["sravioli", "wezterm-plugins", "memo.wz"], ancestry.Select(entry => entry.Name));
-        Assert.True(ancestry[0].IsRoot);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                ancestry.Select(entry => entry.Name),
+                Is.EqualTo(new object?[] { "sravioli", "wezterm-plugins", "memo.wz" })
+            );
+            Assert.That(ancestry[0].IsRoot, Is.True);
+        }
     }
 
-    [Fact]
-    public void GetPickMenu_Root_ListsReadmeAndFoldersWithChildIndicators()
+    [Test]
+    public void GetPickMenuRootListsReadmeAndFoldersWithChildIndicators()
     {
         var menu = PortfolioCatalog.GetPickMenu(string.Empty);
 
-        Assert.Equal(["README.md", "chrono", "nvim", "wezterm", "wezterm-plugins"], menu.Select(item => item.Label));
-        Assert.Equal(new PickMenuItem("readme:", "README.md", "", "readme", false), menu[0]);
-        Assert.True(menu.Single(item => item.Label == "wezterm-plugins").HasChildren);
-        Assert.False(menu.Single(item => item.Label == "nvim").HasChildren);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                menu.Select(item => item.Label),
+                Is.EqualTo(
+                    new object?[] { "README.md", "chrono", "nvim", "wezterm", "wezterm-plugins" }
+                )
+            );
+            Assert.That(
+                menu[0],
+                Is.EqualTo(new PickMenuItem("readme:", "README.md", "", "readme", false))
+            );
+            Assert.That(menu.Single(item => item.Label == "wezterm-plugins").HasChildren, Is.True);
+            Assert.That(menu.Single(item => item.Label == "nvim").HasChildren, Is.False);
+        }
     }
 
-    [Fact]
-    public void GetPickMenu_PluginFolder_UsesKeysMatchingBreadcrumbSegments()
+    [Test]
+    public void GetPickMenuPluginFolderUsesKeysMatchingBreadcrumbSegments()
     {
         var menu = PortfolioCatalog.GetPickMenu("wezterm-plugins");
         var memo = PortfolioCatalog.Find("memo.wz")!;
 
-        Assert.Contains(menu, item => item.Key == PortfolioCatalog.PickKey(memo) && item.Kind == "file");
-        Assert.Equal("readme:wezterm-plugins", menu[0].Key);
-        Assert.Empty(PortfolioCatalog.GetPickMenu("missing"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                menu.Any(item => item.Key == PortfolioCatalog.PickKey(memo) && item.Kind == "file"),
+                Is.True
+            );
+            Assert.That(menu[0].Key, Is.EqualTo("readme:wezterm-plugins"));
+            Assert.That(PortfolioCatalog.GetPickMenu("missing"), Is.Empty);
+        }
     }
 }

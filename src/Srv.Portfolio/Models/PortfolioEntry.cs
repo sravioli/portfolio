@@ -7,7 +7,8 @@ public sealed record PortfolioEntry(
     string? ReadmePath,
     IReadOnlyList<PortfolioEntry> Children,
     bool IsProjectFile = false,
-    bool IsReadmeLocal = false)
+    bool IsReadmeLocal = false
+)
 {
     public bool HasReadme => ReadmePath is not null || IsReadmeLocal;
     public bool IsRoot => Repository.Length == 0;
@@ -18,12 +19,13 @@ public sealed record ExplorerItem(
     ExplorerItemKind Kind,
     PortfolioEntry? Entry = null,
     int Depth = 0,
-    bool IsExpanded = false);
+    bool IsExpanded = false
+);
 
 public enum ExplorerItemKind
 {
     Parent,
     Readme,
     Folder,
-    ProjectFile
+    ProjectFile,
 }

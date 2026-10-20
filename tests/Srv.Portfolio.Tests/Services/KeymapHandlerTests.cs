@@ -1,11 +1,12 @@
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class KeymapHandlerTests
+[TestFixture]
+internal sealed class KeymapHandlerTests
 {
-    [Fact]
-    public void Handle_LeaderFF_OpensFileFinderWithoutChangingCurrentDocument()
+    [Test]
+    public void HandleLeaderFFOpensFileFinderWithoutChangingCurrentDocument()
     {
         var state = new NavigationState();
         state.NavigateTo("memo.wz");
@@ -13,24 +14,33 @@ public sealed class KeymapHandlerTests
 
         var result = new KeymapHandler().Handle(state, "<leader>ff");
 
-        Assert.Equal(KeyAction.OpenFileFinder, result);
-        Assert.Equal("memo.wz", state.CurrentDocument?.Repository);
-        Assert.Equal(previousIndex, state.SelectedIndex);
-        Assert.True(state.IsReading);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.OpenFileFinder));
+            Assert.That(state.CurrentDocument?.Repository, Is.EqualTo("memo.wz"));
+            Assert.That(state.SelectedIndex, Is.EqualTo(previousIndex));
+            Assert.That(state.IsReading, Is.True);
+        }
     }
 
-    [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void Handle_LeaderFFWhenUnavailable_DoesNotOpenFileFinder(bool helpOpen, bool keyboardDisabled)
+    [TestCase(true, false)]
+    [TestCase(false, true)]
+    public void HandleLeaderFFWhenUnavailableDoesNotOpenFileFinder(
+        bool helpOpen,
+        bool keyboardDisabled
+    )
     {
-        var state = new NavigationState { IsHelpOpen = helpOpen, KeyboardEnabled = !keyboardDisabled };
+        var state = new NavigationState
+        {
+            IsHelpOpen = helpOpen,
+            KeyboardEnabled = !keyboardDisabled,
+        };
 
-        Assert.Equal(KeyAction.Ignored, new KeymapHandler().Handle(state, "<leader>ff"));
+        Assert.That(new KeymapHandler().Handle(state, "<leader>ff"), Is.EqualTo(KeyAction.Ignored));
     }
 
-    [Fact]
-    public void Handle_EnterOnFolderWhileReading_TogglesInlineAndKeepsExplorerFocus()
+    [Test]
+    public void HandleEnterOnFolderWhileReadingTogglesInlineAndKeepsExplorerFocus()
     {
         var state = new NavigationState();
         state.OpenSelected();
@@ -38,14 +48,17 @@ public sealed class KeymapHandlerTests
 
         var result = new KeymapHandler().Handle(state, "Enter", explorerFocused: true);
 
-        Assert.Equal(KeyAction.FocusExplorer, result);
-        Assert.True(state.SelectedEntry.IsExpanded);
-        Assert.Equal(PortfolioCatalog.RootEntry, state.CurrentDocument);
-        Assert.True(state.IsReading);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.FocusExplorer));
+            Assert.That(state.SelectedEntry.IsExpanded, Is.True);
+            Assert.That(state.CurrentDocument, Is.EqualTo(PortfolioCatalog.RootEntry));
+            Assert.That(state.IsReading, Is.True);
+        }
     }
 
-    [Fact]
-    public void Handle_HInFocusedExplorer_CollapsesFolderWithoutClosingDocument()
+    [Test]
+    public void HandleHInFocusedExplorerCollapsesFolderWithoutClosingDocument()
     {
         var state = new NavigationState();
         state.NavigateTo("memo.wz");
@@ -54,67 +67,87 @@ public sealed class KeymapHandlerTests
         handler.Handle(state, "h", explorerFocused: true);
         var result = handler.Handle(state, "h", explorerFocused: true);
 
-        Assert.Equal(KeyAction.FocusExplorer, result);
-        Assert.Equal("wezterm-plugins/", state.SelectedEntry.Name);
-        Assert.False(state.SelectedEntry.IsExpanded);
-        Assert.True(state.IsReading);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.FocusExplorer));
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("wezterm-plugins/"));
+            Assert.That(state.SelectedEntry.IsExpanded, Is.False);
+            Assert.That(state.IsReading, Is.True);
+        }
     }
 
-    [Fact]
-    public void Handle_LeaderE_FocusesExplorerWithoutClosingReadme()
+    [Test]
+    public void HandleLeaderEFocusesExplorerWithoutClosingReadme()
     {
         var state = new NavigationState();
         state.OpenSelected();
 
         var result = new KeymapHandler().Handle(state, "<leader>e");
 
-        Assert.Equal(KeyAction.FocusExplorer, result);
-        Assert.True(state.IsReading);
-        Assert.Equal(PortfolioCatalog.RootEntry, state.CurrentDocument);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.FocusExplorer));
+            Assert.That(state.IsReading, Is.True);
+            Assert.That(state.CurrentDocument, Is.EqualTo(PortfolioCatalog.RootEntry));
+        }
     }
 
-    [Theory]
-    [InlineData("j", 1)]
-    [InlineData("ArrowDown", 1)]
-    [InlineData("G", 4)]
-    public void Handle_ExplorerFocusedWhileReading_MovesSelectionInsteadOfScrolling(string key, int expected)
+    [TestCase("j", 1)]
+    [TestCase("ArrowDown", 1)]
+    [TestCase("G", 4)]
+    public void HandleExplorerFocusedWhileReadingMovesSelectionInsteadOfScrolling(
+        string key,
+        int expected
+    )
     {
         var state = new NavigationState();
         state.OpenSelected();
 
         var result = new KeymapHandler().Handle(state, key, explorerFocused: true);
 
-        Assert.Equal(KeyAction.Changed, result);
-        Assert.Equal(expected, state.SelectedIndex);
-        Assert.True(state.IsReading);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.Changed));
+            Assert.That(state.SelectedIndex, Is.EqualTo(expected));
+            Assert.That(state.IsReading, Is.True);
+        }
     }
 
-    [Fact]
-    public void Handle_PreviewFocusedWhileReading_ScrollsInsteadOfMovingSelection()
+    [Test]
+    public void HandlePreviewFocusedWhileReadingScrollsInsteadOfMovingSelection()
     {
         var state = new NavigationState();
         state.OpenSelected();
 
         var result = new KeymapHandler().Handle(state, "j");
 
-        Assert.Equal(KeyAction.ScrollDown, result);
-        Assert.Equal(0, state.SelectedIndex);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.ScrollDown));
+            Assert.That(state.SelectedIndex, Is.Zero);
+        }
     }
 
-    [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public void Handle_LeaderEWhenUnavailable_DoesNotFocusExplorer(bool helpOpen, bool keyboardDisabled)
+    [TestCase(true, false)]
+    [TestCase(false, true)]
+    public void HandleLeaderEWhenUnavailableDoesNotFocusExplorer(
+        bool helpOpen,
+        bool keyboardDisabled
+    )
     {
-        var state = new NavigationState { IsHelpOpen = helpOpen, KeyboardEnabled = !keyboardDisabled };
+        var state = new NavigationState
+        {
+            IsHelpOpen = helpOpen,
+            KeyboardEnabled = !keyboardDisabled,
+        };
 
         var result = new KeymapHandler().Handle(state, "<leader>e");
 
-        Assert.Equal(KeyAction.Ignored, result);
+        Assert.That(result, Is.EqualTo(KeyAction.Ignored));
     }
 
-    [Fact]
-    public void Handle_JAndKInExplorer_MovesSelection()
+    [Test]
+    public void HandleJAndKInExplorerMovesSelection()
     {
         var state = new NavigationState();
         state.GoToParent();
@@ -123,11 +156,11 @@ public sealed class KeymapHandlerTests
         handler.Handle(state, "j");
         handler.Handle(state, "k");
 
-        Assert.Equal(0, state.SelectedIndex);
+        Assert.That(state.SelectedIndex, Is.Zero);
     }
 
-    [Fact]
-    public void Handle_GGInExplorer_SelectsFirstEntry()
+    [Test]
+    public void HandleGGInExplorerSelectsFirstEntry()
     {
         var state = new NavigationState();
         state.GoToParent();
@@ -137,12 +170,15 @@ public sealed class KeymapHandlerTests
         handler.Handle(state, "g");
         var result = handler.Handle(state, "g");
 
-        Assert.Equal(KeyAction.Changed, result);
-        Assert.Equal(0, state.SelectedIndex);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.Changed));
+            Assert.That(state.SelectedIndex, Is.Zero);
+        }
     }
 
-    [Fact]
-    public void Handle_PInReadme_TogglesRawView()
+    [Test]
+    public void HandlePInReadmeTogglesRawView()
     {
         var state = new NavigationState();
         state.OpenSelected();
@@ -150,35 +186,41 @@ public sealed class KeymapHandlerTests
 
         handler.Handle(state, "p");
 
-        Assert.True(state.IsRawView);
+        Assert.That(state.IsRawView, Is.True);
     }
 
-    [Fact]
-    public void Handle_WhenKeyboardIsDisabled_DoesNotChangeState()
+    [Test]
+    public void HandleWhenKeyboardIsDisabledDoesNotChangeState()
     {
         var state = new NavigationState { KeyboardEnabled = false };
         var handler = new KeymapHandler();
 
         var result = handler.Handle(state, "p");
 
-        Assert.Equal(KeyAction.Ignored, result);
-        Assert.False(state.IsRawView);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.Ignored));
+            Assert.That(state.IsRawView, Is.False);
+        }
     }
 
-    [Fact]
-    public void Handle_ColonWhenKeyboardIsDisabled_StillEntersCommandMode()
+    [Test]
+    public void HandleColonWhenKeyboardIsDisabledStillEntersCommandMode()
     {
         var state = new NavigationState { KeyboardEnabled = false };
 
         var result = new KeymapHandler().Handle(state, ":");
 
-        Assert.Equal(KeyAction.FocusCommand, result);
-        Assert.True(state.IsCommandMode);
-        Assert.Equal(":", state.CommandText);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.FocusCommand));
+            Assert.That(state.IsCommandMode, Is.True);
+            Assert.That(state.CommandText, Is.EqualTo(":"));
+        }
     }
 
-    [Fact]
-    public void Handle_GxSequence_FollowsLinkWhileReadingOrOnWelcome()
+    [Test]
+    public void HandleGxSequenceFollowsLinkWhileReadingOrOnWelcome()
     {
         var reading = new NavigationState();
         reading.OpenSelected();
@@ -187,13 +229,22 @@ public sealed class KeymapHandlerTests
         closed.OpenSelected();
         closed.GoToParent();
 
-        Assert.Equal(KeyAction.FollowLink, new KeymapHandler().Handle(reading, "gx"));
-        Assert.Equal(KeyAction.FollowLink, new KeymapHandler().Handle(welcome, "gx"));
-        Assert.Equal(KeyAction.Ignored, new KeymapHandler().Handle(closed, "gx"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                new KeymapHandler().Handle(reading, "gx"),
+                Is.EqualTo(KeyAction.FollowLink)
+            );
+            Assert.That(
+                new KeymapHandler().Handle(welcome, "gx"),
+                Is.EqualTo(KeyAction.FollowLink)
+            );
+            Assert.That(new KeymapHandler().Handle(closed, "gx"), Is.EqualTo(KeyAction.Ignored));
+        }
     }
 
-    [Fact]
-    public void Handle_GxOnWelcome_FollowsLink()
+    [Test]
+    public void HandleGxOnWelcomeFollowsLink()
     {
         var state = new NavigationState();
         var handler = new KeymapHandler();
@@ -201,20 +252,26 @@ public sealed class KeymapHandlerTests
         handler.Handle(state, "g");
         var result = handler.Handle(state, "x");
 
-        Assert.True(state.IsWelcome);
-        Assert.Equal(KeyAction.FollowLink, result);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.IsWelcome, Is.True);
+            Assert.That(result, Is.EqualTo(KeyAction.FollowLink));
+        }
     }
 
-    [Fact]
-    public void Handle_Colon_EntersCommandModeWithColonPrefilled()
+    [Test]
+    public void HandleColonEntersCommandModeWithColonPrefilled()
     {
         var state = new NavigationState();
         var handler = new KeymapHandler();
 
         var result = handler.Handle(state, ":");
 
-        Assert.Equal(KeyAction.FocusCommand, result);
-        Assert.True(state.IsCommandMode);
-        Assert.Equal(":", state.CommandText);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(KeyAction.FocusCommand));
+            Assert.That(state.IsCommandMode, Is.True);
+            Assert.That(state.CommandText, Is.EqualTo(":"));
+        }
     }
 }

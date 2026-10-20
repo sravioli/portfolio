@@ -2,7 +2,7 @@ using Srv.Portfolio.Models;
 
 namespace Srv.Portfolio.Services;
 
-public sealed class NavigationState
+internal sealed class NavigationState
 {
     private readonly HashSet<string> _expandedFolders = new(StringComparer.OrdinalIgnoreCase);
 
@@ -23,7 +23,10 @@ public sealed class NavigationState
     public bool KeyboardEnabled { get; set; } = true;
     public bool DevNotation { get; set; } = true;
     public string Leader { get; set; } = " ";
-    public string LeaderLabel => Leader == " " ? "Space" : Leader == "\\" ? "\\" : Leader;
+    public string LeaderLabel =>
+        Leader == " " ? "Space"
+        : Leader == "\\" ? "\\"
+        : Leader;
     public bool IsHelpOpen { get; set; }
     public bool IsCommandMode { get; set; }
     public string CommandText { get; set; } = string.Empty;
@@ -51,9 +54,7 @@ public sealed class NavigationState
     public void SetKeyboardEnabled(bool enabled)
     {
         KeyboardEnabled = enabled;
-        Message = enabled
-            ? "Keymaps on."
-            : "Keymaps off. Type :set keys to turn them back on.";
+        Message = enabled ? "Keymaps on." : "Keymaps off. Type :set keys to turn them back on.";
     }
 
     public void SelectIndex(int index)
@@ -133,11 +134,15 @@ public sealed class NavigationState
         }
         else if (item.Depth > 0)
         {
-            var parent = item.Kind == ExplorerItemKind.Readme
-                ? item.Entry
-                : PortfolioCatalog.FindParent(item.Entry!);
-            SelectedIndex = Entries.ToList().FindIndex(candidate =>
-                candidate.Kind == ExplorerItemKind.Folder && candidate.Entry == parent);
+            var parent =
+                item.Kind == ExplorerItemKind.Readme
+                    ? item.Entry
+                    : PortfolioCatalog.FindParent(item.Entry!);
+            SelectedIndex = Entries
+                .ToList()
+                .FindIndex(candidate =>
+                    candidate.Kind == ExplorerItemKind.Folder && candidate.Entry == parent
+                );
         }
 
         Message = null;
@@ -180,17 +185,22 @@ public sealed class NavigationState
             ancestor = PortfolioCatalog.FindParent(ancestor);
         }
 
-        var kind = entry.IsProjectFile ? ExplorerItemKind.ProjectFile
-            : entry.HasReadme ? ExplorerItemKind.Readme : ExplorerItemKind.Folder;
-        SelectedIndex = Entries.ToList().FindIndex(item => item.Entry == entry && item.Kind == kind);
+        var kind =
+            entry.IsProjectFile ? ExplorerItemKind.ProjectFile
+            : entry.HasReadme ? ExplorerItemKind.Readme
+            : ExplorerItemKind.Folder;
+        SelectedIndex = Entries
+            .ToList()
+            .FindIndex(item => item.Entry == entry && item.Kind == kind);
     }
 
     private void AddVisibleEntries(PortfolioEntry folder, int depth, List<ExplorerItem> items)
     {
         foreach (var item in PortfolioCatalog.GetContentListing(folder))
         {
-            var expanded = item.Kind == ExplorerItemKind.Folder &&
-                _expandedFolders.Contains(item.Entry!.Repository);
+            var expanded =
+                item.Kind == ExplorerItemKind.Folder
+                && _expandedFolders.Contains(item.Entry!.Repository);
             items.Add(item with { Depth = depth, IsExpanded = expanded });
             if (expanded)
             {

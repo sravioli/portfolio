@@ -1,48 +1,59 @@
 using Srv.Portfolio.Services;
 
-namespace Srv.Portfolio.Tests;
+namespace Srv.Portfolio.Tests.Services;
 
-public sealed class CancellationSourcesTests
+[TestFixture]
+internal sealed class CancellationSourcesTests
 {
-    [Fact]
-    public void CancelAndDispose_NullReference_IsANoOp()
+    [Test]
+    public void CancelAndDisposeNullReferenceIsANoOp()
     {
         CancellationTokenSource? cancellation = null;
 
         CancellationSources.CancelAndDispose(ref cancellation);
 
-        Assert.Null(cancellation);
+        Assert.That(cancellation, Is.Null);
     }
 
-    [Fact]
-    public void CancelAndDispose_InvokesCallbacksThenDisposesAndClearsReference()
+    [Test]
+    public void CancelAndDisposeInvokesCallbacksThenDisposesAndClearsReference()
     {
         CancellationTokenSource? cancellation = new();
         var original = cancellation;
         var callbackObservedCancellation = false;
-        cancellation.Token.Register(() => callbackObservedCancellation = cancellation!.IsCancellationRequested);
+        cancellation.Token.Register(() =>
+            callbackObservedCancellation = cancellation!.IsCancellationRequested
+        );
 
         CancellationSources.CancelAndDispose(ref cancellation);
 
-        Assert.True(callbackObservedCancellation);
-        Assert.Null(cancellation);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(callbackObservedCancellation, Is.True);
+            Assert.That(cancellation, Is.Null);
+        }
         Assert.Throws<ObjectDisposedException>(() => _ = original.Token);
     }
 
-    [Fact]
-    public void CancelAndDispose_WhenCallbackThrows_RetainsCanceledUsableSource()
+    [Test]
+    public void CancelAndDisposeWhenCallbackThrowsRetainsCanceledUsableSource()
     {
         var sentinel = new InvalidOperationException("callback failed");
         CancellationTokenSource? cancellation = new();
         var original = cancellation;
         original.Token.Register(() => throw sentinel);
 
-        var exception = Assert.Throws<AggregateException>(() => CancellationSources.CancelAndDispose(ref cancellation));
+        var exception = Assert.Throws<AggregateException>(() =>
+            CancellationSources.CancelAndDispose(ref cancellation)
+        );
 
-        Assert.Contains(sentinel, exception.InnerExceptions);
-        Assert.Same(original, cancellation);
-        Assert.True(original.IsCancellationRequested);
-        Assert.True(original.Token.IsCancellationRequested);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exception.InnerExceptions, Does.Contain(sentinel));
+            Assert.That(cancellation, Is.SameAs(original));
+            Assert.That(original.IsCancellationRequested, Is.True);
+            Assert.That(original.Token.IsCancellationRequested, Is.True);
+        }
         original.Dispose();
     }
 }
