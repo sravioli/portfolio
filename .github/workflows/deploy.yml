@@ -28,6 +28,22 @@ jobs:
       - name: Configure GitHub Pages
         id: pages
         uses: actions/configure-pages@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Minify before publishing so asset hashes and compressed copies match.
+      - name: Minify application JavaScript
+        run: >-
+          npm exec --yes --package=esbuild@0.28.2 -- esbuild
+          "src/Srv.Portfolio/wwwroot/js/*.js"
+          "src/Srv.Portfolio/Pages/*.razor.js"
+          --outbase=src/Srv.Portfolio
+          --outdir=src/Srv.Portfolio
+          --allow-overwrite
+          --minify
+          --format=esm
+          --legal-comments=none
       - name: Publish portfolio
         run: dotnet publish src/Srv.Portfolio -c Release -o out
       - name: Prepare GitHub Pages assets
