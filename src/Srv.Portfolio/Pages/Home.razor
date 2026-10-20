@@ -76,12 +76,12 @@
                 {
                     @if (State.IsRawView)
                     {
-                        <pre class="raw-readme" data-repository="@State.CurrentDocument?.Repository">@foreach (var line in _documentSource.Replace("\r\n", "\n").Split('\n')){<span class="raw-line">@line</span>}</pre>
+                        <pre class="raw-readme" data-repository="@State.CurrentDocument?.Repository">@foreach (var line in _rawLines){<span class="raw-line">@line</span>}</pre>
                     }
                     else
                     {
                         <article class="readme-content" data-repository="@State.CurrentDocument?.Repository"
-                                 data-total-lines="@(_documentSource.Count(character => character == '\n') + 1)">
+                                 data-total-lines="@_totalLines">
                             @((MarkupString)_renderedDocument)
                         </article>
                     }
@@ -268,6 +268,7 @@
     private DotNetObjectReference<Home>? _dotNetReference;
     private CancellationTokenSource? _loadCancellation;
     private string? _documentSource;
+    private string[] _rawLines = [];
     private string _renderedDocument = string.Empty;
     private string? _loadError;
     private bool _loading;
@@ -386,6 +387,7 @@
         CancelReadmeLoad();
         State.GoToParent();
         _documentSource = null;
+        _rawLines = [];
         _renderedDocument = string.Empty;
         _loadError = null;
         await InvokeAsync(StateHasChanged);
@@ -396,6 +398,7 @@
         CancelReadmeLoad();
         State.CloseDocument();
         _documentSource = null;
+        _rawLines = [];
         _renderedDocument = string.Empty;
         _loadError = null;
         _loading = false;
@@ -427,6 +430,7 @@
         _loading = true;
         _loadError = null;
         _documentSource = null;
+        _rawLines = [];
         _lastHighlightedSource = null;
         _headingBreadcrumbs = [];
         await InvokeAsync(StateHasChanged);
@@ -437,7 +441,8 @@
             if (!cancellation.IsCancellationRequested && State.CurrentDocument == entry)
             {
                 _documentSource = source;
-                _totalLines = Math.Max(1, source.Replace("\r\n", "\n").Split('\n').Length);
+                _totalLines = Math.Max(1, source.Count(character => character == '\n') + 1);
+                _rawLines = State.IsRawView ? source.Replace("\r\n", "\n").Split('\n') : [];
                 _positionLine = 1;
                 _scrollPosition = "All";
                 try
@@ -555,6 +560,7 @@
                 {
                     CancelReadmeLoad();
                     _documentSource = null;
+                    _rawLines = [];
                     _renderedDocument = string.Empty;
                 }
                 break;
@@ -605,6 +611,9 @@
                 else if (key == "p")
                 {
                     _lastHighlightedSource = null;
+                    _rawLines = State.IsRawView
+                        ? _documentSource?.Replace("\r\n", "\n").Split('\n') ?? []
+                        : [];
                 }
                 break;
         }
@@ -684,6 +693,7 @@
             else
             {
                 _documentSource = null;
+                _rawLines = [];
                 _renderedDocument = string.Empty;
                 await InvokeAsync(StateHasChanged);
             }

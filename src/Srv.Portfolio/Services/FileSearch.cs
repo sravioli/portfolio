@@ -6,15 +6,18 @@ public sealed record FileSearchResult(PortfolioEntry Entry, string Path, IReadOn
 
 public static class FileSearch
 {
+    private static readonly SearchEntry[] SearchEntries = PortfolioCatalog.AllEntries()
+        .Select(entry => new SearchEntry(entry, BuildPath(entry)))
+        .ToArray();
+
     public static IReadOnlyList<FileSearchResult> Search(string query)
     {
         var pattern = string.Concat(query.Where(character => !char.IsWhiteSpace(character)));
         var results = new List<(FileSearchResult Result, int Score)>();
-        foreach (var entry in PortfolioCatalog.AllEntries())
+        foreach (var searchEntry in SearchEntries)
         {
-            var repositoryPath = string.Join('/', PortfolioCatalog.GetPath(entry).Skip(1));
-            var path = (repositoryPath.Length > 0 ? repositoryPath + "/" : "") +
-                (entry.ReadmePath ?? "README.md");
+            var entry = searchEntry.Entry;
+            var path = searchEntry.Path;
             var matches = new List<int>();
             var cursor = 0;
             foreach (var character in pattern)
@@ -45,4 +48,13 @@ public static class FileSearch
             .Select(item => item.Result)
             .ToArray();
     }
+
+    private static string BuildPath(PortfolioEntry entry)
+    {
+        var repositoryPath = string.Join('/', PortfolioCatalog.GetPath(entry).Skip(1));
+        return (repositoryPath.Length > 0 ? repositoryPath + "/" : "") +
+            (entry.ReadmePath ?? "README.md");
+    }
+
+    private sealed record SearchEntry(PortfolioEntry Entry, string Path);
 }

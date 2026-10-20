@@ -7,6 +7,8 @@ namespace Srv.Portfolio.Pages;
 
 public partial class FileFinder
 {
+    private static readonly TimeSpan PreviewDebounceDelay = TimeSpan.FromMilliseconds(150);
+
     [Parameter] public EventCallback<PortfolioEntry> OnOpen { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -38,7 +40,7 @@ public partial class FileFinder
         _query = args.Value?.ToString() ?? string.Empty;
         _results = FileSearch.Search(_query);
         _selectedIndex = 0;
-        await LoadPreview();
+        await LoadPreview(debounce: true);
     }
 
     private async Task SelectResult(int index)
@@ -48,7 +50,7 @@ public partial class FileFinder
         await LoadPreview();
     }
 
-    private async Task LoadPreview()
+    private async Task LoadPreview(bool debounce = false)
     {
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
@@ -63,10 +65,15 @@ public partial class FileFinder
 
         var cancellation = new CancellationTokenSource();
         _previewCancellation = cancellation;
-        _loading = true;
-        await InvokeAsync(StateHasChanged);
         try
         {
+            if (debounce)
+            {
+                await Task.Delay(PreviewDebounceDelay, cancellation.Token);
+            }
+
+            _loading = true;
+            await InvokeAsync(StateHasChanged);
             var source = await Readmes.GetAsync(_results[_selectedIndex].Entry, cancellation.Token);
             if (!cancellation.IsCancellationRequested && !_disposed)
             {

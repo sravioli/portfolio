@@ -39,7 +39,7 @@
             {
                 <div role="alert">
                     <p>Could not load preview: @_error</p>
-                    <button type="button" class="finder-retry" @onclick="LoadPreview">Retry</button>
+                    <button type="button" class="finder-retry" @onclick="() => LoadPreview()">Retry</button>
                 </div>
             }
             else if (_preview is not null)

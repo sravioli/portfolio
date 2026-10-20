@@ -14,6 +14,8 @@ const CTRL_MAPS = ["d", "u", "h", "l", "p", "c", "o", "i"];
 
 let dotNetRef;
 let positionFrame = 0;
+let positionTimer = 0;
+let lastPositionReport = 0;
 let keyboardEnabled = true;
 let leader = " ";
 let leaderPressedAt = 0;
@@ -22,6 +24,25 @@ let pendingBracket = "";
 let bracketPressedAt = 0;
 let whichKeyTimer = 0;
 const motions = createMotionParser();
+const POSITION_REPORT_INTERVAL = 100;
+let highlighterPromise;
+
+function loadHighlighter() {
+    if (window.hljs) return Promise.resolve();
+    if (!highlighterPromise) {
+        highlighterPromise = new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = new URL("../lib/highlight/highlight.min.js", import.meta.url);
+            script.onload = resolve;
+            script.onerror = () => {
+                highlighterPromise = undefined;
+                reject(new Error("Unable to load README syntax highlighting."));
+            };
+            document.head.append(script);
+        });
+    }
+    return highlighterPromise;
+}
 
 function resetLeader() {
     leaderPressedAt = 0;
@@ -322,10 +343,22 @@ export function getActiveHeadings(headings, top) {
 
 function schedulePosition() {
     if (positionFrame) return;
-    positionFrame = requestAnimationFrame(async () => {
+    positionFrame = requestAnimationFrame(() => {
         positionFrame = 0;
         cursor.sync();
-        await reportPosition();
+        const delay = POSITION_REPORT_INTERVAL - (performance.now() - lastPositionReport);
+        if (delay > 0) {
+            if (!positionTimer) {
+                positionTimer = setTimeout(() => {
+                    positionTimer = 0;
+                    lastPositionReport = performance.now();
+                    void reportPosition();
+                }, delay);
+            }
+            return;
+        }
+        lastPositionReport = performance.now();
+        void reportPosition();
     });
 }
 
@@ -461,9 +494,17 @@ export function focusExplorer(explorer) {
     entry?.scrollIntoView({ block: "nearest" });
 }
 
-export function refreshPreview() {
+export async function refreshPreview() {
+    const blocks = [...document.querySelectorAll(".readme-content pre code")];
+    if (blocks.some(block => [...block.classList].some(name => name.startsWith("language-")))) {
+        try {
+            await loadHighlighter();
+        } catch (error) {
+            console.error(error);
+        }
+    }
     if (window.hljs) {
-        for (const block of document.querySelectorAll(".readme-content pre code")) {
+        for (const block of blocks) {
             const language = [...block.classList]
                 .find(name => name.startsWith("language-"))
                 ?.slice("language-".length);
@@ -526,6 +567,9 @@ export function dispose() {
     document.removeEventListener("load", onContentLoad, true);
     if (positionFrame) cancelAnimationFrame(positionFrame);
     positionFrame = 0;
+    if (positionTimer) clearTimeout(positionTimer);
+    positionTimer = 0;
+    lastPositionReport = 0;
     cursor.dispose();
     dotNetRef = undefined;
 }
