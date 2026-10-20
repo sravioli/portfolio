@@ -94,6 +94,69 @@ public sealed class MarkdownProcessorTests
             StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("", "docs/guide.md", "docs/guide.md")]
+    [InlineData("nvim", "guide.md", "guide.md")]
+    [InlineData("chrono", "../docs/guide%20one.md", "docs/guide%20one.md")]
+    [InlineData("chrono", "../../guide.md", "guide.md")]
+    [InlineData("chrono", "/docs/./guide.md", "docs/guide.md")]
+    [InlineData("nap.wz", "./images/demo.png", "images/demo.png")]
+    public void Render_RelativeResources_PreservesRepositoryAndNormalizedPaths(
+        string repository, string resource, string expectedPath)
+    {
+        var html = _processor.Render(
+            $"[Document]({resource})\n\n![Image]({resource})",
+            PortfolioCatalog.Find(repository)!);
+        var expectedRepository = repository.Length == 0 ? "sravioli" : repository;
+
+        Assert.Contains($"href=\"https://github.com/sravioli/{expectedRepository}/blob/main/{expectedPath}\"", html);
+        Assert.Contains($"src=\"https://raw.githubusercontent.com/sravioli/{expectedRepository}/main/{expectedPath}\"", html);
+    }
+
+    [Fact]
+    public void Render_AbsoluteResources_PreservesExternalUrls()
+    {
+        var html = _processor.Render(
+            "[Document](https://example.test/docs/guide.md)\n\n![Image](https://example.test/images/demo.png)",
+            PortfolioCatalog.Find("chrono")!);
+
+        Assert.Contains("href=\"https://example.test/docs/guide.md\"", html);
+        Assert.Contains("src=\"https://example.test/images/demo.png\"", html);
+        Assert.DoesNotContain("data-internal-repo", html);
+    }
+
+    [Theory]
+    [InlineData("https://github.com/sravioli/chrono")]
+    [InlineData("https://github.com/sravioli/chrono/")]
+    [InlineData("https://github.com/sravioli/chrono.git")]
+    [InlineData("https://github.com/sravioli/chrono/tree/main")]
+    [InlineData("https://github.com/sravioli/chrono/blob/main/README.md")]
+    [InlineData("https://github.com/sravioli/chrono/blob/main/.github/readme.md")]
+    [InlineData("https://GITHUB.COM/SRAVIOLI/chrono.git/TREE/MAIN")]
+    public void Render_CatalogRepositoryLinks_PreservesInternalNavigation(string url)
+    {
+        var html = _processor.Render($"[Project]({url})", PortfolioCatalog.RootEntry);
+
+        Assert.Contains("data-internal-repo=\"chrono\"", html);
+        Assert.Contains("title=\"Open chrono here\"", html);
+    }
+
+    [Theory]
+    [InlineData("https://github.com/sravioli/chrono/issues")]
+    [InlineData("https://github.com/sravioli/chrono/tree/develop")]
+    [InlineData("https://github.com/sravioli/chrono/blob/main/docs/README.md")]
+    [InlineData("https://github.com/sravioli/chrono/blob/main/guide.md")]
+    [InlineData("https://github.com/sravioli/unknown")]
+    [InlineData("https://github.com/another-owner/chrono")]
+    [InlineData("https://github.com.example.test/sravioli/chrono")]
+    public void Render_OtherRepositoryLinks_PreservesExternalNavigation(string url)
+    {
+        var html = _processor.Render($"[Project]({url})", PortfolioCatalog.RootEntry);
+
+        Assert.Contains($"href=\"{url}\"", html);
+        Assert.DoesNotContain("data-internal-repo", html);
+    }
+
     [Fact]
     public void Render_DuplicateHeadingSlugs_AreDisambiguated()
     {

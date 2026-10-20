@@ -9,7 +9,6 @@ namespace Srv.Portfolio.Services;
 public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage, TimeProvider timeProvider)
 {
     private const string DescriptionsStorageKey = "srv.github-descriptions";
-    private const string RepositoriesUri = "https://api.github.com/users/sravioli/repos?per_page=100";
     private static readonly TimeSpan DescriptionsLifetime = TimeSpan.FromHours(6);
 
     private readonly Dictionary<string, string> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -32,7 +31,7 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
             return cached;
         }
 
-        var uri = $"https://raw.githubusercontent.com/sravioli/{entry.Repository}/main/{entry.ReadmePath}";
+        var uri = GitHubUrls.RawFile(entry.Repository, entry.ReadmePath!);
         var content = await httpClient.GetStringAsync(uri, cancellationToken);
         _cache[entry.Repository] = content;
         return content;
@@ -45,7 +44,7 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
 
         return "# WezTerm plugins\n\nA collection of small, composable plugins for WezTerm.\n\n" +
             string.Join("\n", plugins.Select(plugin =>
-                $"- [{plugin.Name}](https://github.com/sravioli/{plugin.Repository}) — " +
+                $"- [{plugin.Name}]({GitHubUrls.Repository(plugin.Repository)}) — " +
                 $"{descriptions.GetValueOrDefault(plugin.Repository) ?? plugin.Description}")) +
             "\n";
     }
@@ -67,7 +66,7 @@ public sealed class ReadmeService(HttpClient httpClient, IBrowserStorage storage
 
         try
         {
-            var repositories = await httpClient.GetFromJsonAsync<GitHubRepository[]>(RepositoriesUri, cancellationToken) ?? [];
+            var repositories = await httpClient.GetFromJsonAsync<GitHubRepository[]>(GitHubUrls.RepositoriesApiUrl, cancellationToken) ?? [];
             _descriptions = ToLookup(repositories
                 .Where(repository => repository.Name is not null)
                 .DistinctBy(repository => repository.Name, StringComparer.OrdinalIgnoreCase)

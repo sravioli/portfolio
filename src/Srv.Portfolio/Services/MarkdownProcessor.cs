@@ -60,7 +60,7 @@ public sealed class MarkdownProcessor
                 anchor.Children.Length != 0 ||
                 !Uri.TryCreate(href, UriKind.Absolute, out var uri) ||
                 uri.Scheme != Uri.UriSchemeHttps ||
-                !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) ||
+                !uri.Host.Equals(GitHubUrls.Host, StringComparison.OrdinalIgnoreCase) ||
                 !Regex.IsMatch(uri.AbsolutePath,
                     @"^/user-attachments/assets/[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"))
             {
@@ -119,7 +119,7 @@ public sealed class MarkdownProcessor
             return absolute.ToString();
         }
 
-        var repository = entry.IsRoot ? "sravioli" : entry.Repository;
+        var repository = entry.IsRoot ? GitHubUrls.Owner : entry.Repository;
         var readmeDirectory = entry.ReadmePath is null
             ? string.Empty
             : Path.GetDirectoryName(entry.ReadmePath)?.Replace('\\', '/') ?? string.Empty;
@@ -127,11 +127,7 @@ public sealed class MarkdownProcessor
             ? value.TrimStart('/')
             : string.Join('/', new[] { readmeDirectory, value }.Where(segment => segment.Length > 0));
         var path = NormalizeRepositoryPath(relativePath);
-        var host = image
-            ? "https://raw.githubusercontent.com"
-            : "https://github.com";
-        var suffix = image ? "/main" : "/blob/main";
-        return $"{host}/sravioli/{repository}{suffix}/{path}";
+        return image ? GitHubUrls.RawFile(repository, path) : GitHubUrls.File(repository, path);
     }
 
     private static string NormalizeRepositoryPath(string path)
@@ -207,13 +203,13 @@ public sealed class MarkdownProcessor
     {
         repository = string.Empty;
         if (!Uri.TryCreate(href, UriKind.Absolute, out var uri) ||
-            !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+            !uri.Host.Equals(GitHubUrls.Host, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
         var segments = uri.AbsolutePath.Trim('/').Split('/');
-        if (segments.Length < 2 || !segments[0].Equals("sravioli", StringComparison.OrdinalIgnoreCase))
+        if (segments.Length < 2 || !segments[0].Equals(GitHubUrls.Owner, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -232,14 +228,14 @@ public sealed class MarkdownProcessor
         }
 
         if (name.Length == 3 && name[1].Equals("tree", StringComparison.OrdinalIgnoreCase) &&
-            name[2].Equals("main", StringComparison.OrdinalIgnoreCase))
+            name[2].Equals(GitHubUrls.Branch, StringComparison.OrdinalIgnoreCase))
         {
             repository = repositoryName;
             return true;
         }
 
         if (name.Length == 4 && name[1].Equals("blob", StringComparison.OrdinalIgnoreCase) &&
-            name[2].Equals("main", StringComparison.OrdinalIgnoreCase) &&
+            name[2].Equals(GitHubUrls.Branch, StringComparison.OrdinalIgnoreCase) &&
             name[3].Equals("README.md", StringComparison.OrdinalIgnoreCase))
         {
             repository = repositoryName;
@@ -247,7 +243,7 @@ public sealed class MarkdownProcessor
         }
 
         if (name.Length == 5 && name[1].Equals("blob", StringComparison.OrdinalIgnoreCase) &&
-            name[2].Equals("main", StringComparison.OrdinalIgnoreCase) &&
+            name[2].Equals(GitHubUrls.Branch, StringComparison.OrdinalIgnoreCase) &&
             name[3].Equals(".github", StringComparison.OrdinalIgnoreCase) &&
             name[4].Equals("readme.md", StringComparison.OrdinalIgnoreCase))
         {
