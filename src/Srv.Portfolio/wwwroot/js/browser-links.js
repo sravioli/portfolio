@@ -1,3 +1,3 @@
 export function openInNewTab(url) {
-    return window.open(url, "_blank", "noopener,noreferrer");
+  return window.open(url, "_blank", "noopener,noreferrer");
 }

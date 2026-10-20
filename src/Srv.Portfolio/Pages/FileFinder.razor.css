@@ -139,7 +139,8 @@ input {
   font-size: 11px;
 }
 
-.finder-footer button, .finder-retry {
+.finder-footer button,
+.finder-retry {
   padding: 2px 8px;
   background: transparent;
   color: var(--gold);
