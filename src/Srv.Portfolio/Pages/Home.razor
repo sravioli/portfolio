@@ -24,7 +24,7 @@
 
     <div class="workspace">
         <aside class="explorer" aria-label="File Explorer">
-            <div class="explorer-path">~/@PortfolioCatalog.RootEntry.Name/</div>
+            <div class="explorer-path">/home/@PortfolioCatalog.RootEntry.Name/</div>
             <nav class="entry-list" aria-label="Project files" @ref="_explorer">
                 <ExplorerTree Entries="State.Entries" SelectedIndex="State.SelectedIndex"
                               OnSelect="SelectEntry" OnOpen="OpenEntry" />
@@ -112,7 +112,7 @@
             <div class="status-left">
                 <span class="mode-block">@(State.IsCommandMode ? "COMMAND" : "NORMAL")</span>
                 <span class="power-arrow blue-arrow" aria-hidden="true"></span>
-                <span class="cwd-segment"><span aria-hidden="true">&#xf024b;</span> <i>~/@string.Join("/", PortfolioCatalog.GetPath(State.CurrentFolder))</i></span>
+                <span class="cwd-segment"><span aria-hidden="true">&#xf024b;</span> <i>/home/@string.Join("/", PortfolioCatalog.GetPath(State.CurrentFolder))</i></span>
                 <span class="power-arrow surface-arrow" aria-hidden="true"></span>
                 <span class="file-segment"><span aria-hidden="true">&#xf48a;</span> README.md</span>
                 <span class="power-arrow file-arrow" aria-hidden="true"></span>
