@@ -5,7 +5,14 @@ export function isOpen() {
   return overlay !== null;
 }
 
+export function canPreview(image) {
+  if (!image || !(image instanceof HTMLImageElement)) return false;
+  const link = image.closest("a[href]");
+  return !link || link.href === image.currentSrc || link.href === image.src;
+}
+
 export function open(image) {
+  if (!canPreview(image)) return false;
   const source = image?.currentSrc || image?.src;
   if (!source) return false;
   close();

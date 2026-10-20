@@ -28,7 +28,7 @@
             <div class="explorer-path">/home/@PortfolioCatalog.RootEntry.Name/</div>
             <nav class="entry-list" aria-label="Project files" @ref="_explorer">
                 <ExplorerTree Entries="State.Entries" SelectedIndex="State.SelectedIndex"
-                              OnSelect="SelectEntry" OnOpen="OpenEntry" />
+                              OnOpen="OpenEntry" />
             </nav>
         </aside>
 
@@ -219,7 +219,7 @@
                 <h3>Links &amp; jumps</h3>
                 <dl>
                     <dt><kbd>gx</kbd><kbd>Enter</kbd></dt><dd>Follow the link or play the video</dd>
-                    <dt><kbd>Enter</kbd></dt><dd>Full-screen image preview</dd>
+                    <dt>Click / <kbd>Enter</kbd></dt><dd>Full-screen image preview</dd>
                     <dt><kbd>@Ctrl('o')</kbd><kbd>@Ctrl('i')</kbd></dt><dd>Jump back or forward</dd>
                 </dl>
             </section>
@@ -361,23 +361,10 @@
         }
     }
 
-    private async Task SelectEntry(int index)
-    {
-        State.SelectIndex(index);
-        if (State.SelectedEntry.Kind == ExplorerItemKind.Folder)
-        {
-            State.OpenSelected();
-        }
-        await InvokeAsync(StateHasChanged);
-    }
-
     private async Task OpenEntry(int index)
     {
         State.SelectIndex(index);
-        if (State.SelectedEntry.Kind != ExplorerItemKind.Folder)
-        {
-            await OpenSelected();
-        }
+        await OpenSelected();
     }
 
     private async Task OpenSelected()

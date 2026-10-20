@@ -251,6 +251,16 @@ async function onKeyDown(event) {
   let key = event.key;
   const target = event.target instanceof Element ? event.target : null;
   const entryButton = target?.closest(".entry");
+  if (
+    !ctrlOnly &&
+    !entryButton &&
+    target?.closest("button, a") &&
+    ["Enter", " ", "Spacebar"].includes(event.key)
+  ) {
+    resetLeader();
+    resetBracket();
+    return;
+  }
   const motionsActive = reading && !entryButton && !helpOpen;
   if (ctrlOnly) {
     resetLeader();
@@ -315,13 +325,6 @@ async function onKeyDown(event) {
       resetBracket();
     }
   }
-  if (
-    !entryButton &&
-    target?.closest("button, a") &&
-    ["Enter", " ", "Spacebar"].includes(event.key)
-  )
-    return;
-
   const welcome =
     /** @type {HTMLElement | null} */ (
       document.querySelector(".preview-scroll")
@@ -473,6 +476,10 @@ async function onClick(event) {
   }
   if (target && event.detail > 0)
     cursor.placeAt(event.clientX, event.clientY, target);
+  if (target?.closest(".readme-content") && viewer.open(target)) {
+    event.preventDefault();
+    return;
+  }
   const headingLink = target?.closest("a[data-readme-heading]");
   const anchorLink = headingLink
     ? null

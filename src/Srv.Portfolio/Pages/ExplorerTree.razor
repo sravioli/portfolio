@@ -7,8 +7,7 @@
             class="entry @(entryIndex == SelectedIndex ? "selected" : "")"
             aria-current="@(entryIndex == SelectedIndex ? "true" : null)"
             aria-expanded="@(folder ? item.IsExpanded.ToString().ToLowerInvariant() : null)"
-            @onclick="() => OnSelect.InvokeAsync(entryIndex)"
-            @ondblclick="() => OnOpen.InvokeAsync(entryIndex)"
+            @onclick="() => OnOpen.InvokeAsync(entryIndex)"
             title="@item.Entry?.Description">
         @for (var level = 0; level < item.Depth; level++)
         {
@@ -39,6 +38,5 @@
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<ExplorerItem> Entries { get; set; } = [];
     [Parameter] public int SelectedIndex { get; set; }
-    [Parameter] public EventCallback<int> OnSelect { get; set; }
     [Parameter] public EventCallback<int> OnOpen { get; set; }
 }

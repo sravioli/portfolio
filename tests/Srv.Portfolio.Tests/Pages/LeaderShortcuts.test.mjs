@@ -163,6 +163,21 @@ test("leader ff opens search and consumes both f keys", async () => {
   assert.deepEqual(calls, [["OnKeyDown", "<leader>ff", false]]);
 });
 
+test("native controls keep Enter and Space activation even with a Space leader", async () => {
+  for (const selector of ["button", "a"]) {
+    initialize(" ");
+    const control = new HTMLElement();
+    control.closest = (query) => query === "button, a" ? control : null;
+    for (const value of ["Enter", " ", "Spacebar"]) {
+      const event = await key(value, { target: control });
+      assert.equal(event.prevented, undefined, `${selector}: ${value}`);
+    }
+    await key("f");
+    assert.equal(whichKey.open, false);
+    assert.deepEqual(calls, []);
+  }
+});
+
 test("Space and comma leaders work with ff and existing e mapping", async () => {
   for (const leader of [" ", ","]) {
     initialize(leader);

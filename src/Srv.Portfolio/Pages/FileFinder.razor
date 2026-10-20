@@ -15,8 +15,7 @@
                     <button @key="result.Path" type="button" id="@($"finder-result-{index}")"
                             class="finder-result @(index == _selectedIndex ? "selected" : "")"
                             role="option" aria-selected="@(index == _selectedIndex ? "true" : "false")"
-                            tabindex="-1" @onclick="() => SelectResult(resultIndex)"
-                            @ondblclick="OpenSelected" title="@result.Path">
+                            tabindex="-1" @onclick="() => OpenResult(resultIndex)" title="@result.Path">
                         <span class="finder-pointer" aria-hidden="true">@(index == _selectedIndex ? "›" : " ")</span>
                         <span class="finder-file-icon" aria-hidden="true">&#xf48a;</span>
                         <span class="finder-path">@for (var character = 0; character < result.Path.Length; character++)

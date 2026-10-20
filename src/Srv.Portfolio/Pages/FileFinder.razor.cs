@@ -127,6 +127,12 @@ public partial class FileFinder
         }
     }
 
+    private Task OpenResult(int index)
+    {
+        _selectedIndex = index;
+        return OpenSelected();
+    }
+
     private async Task OpenSelected()
     {
         if (_results.Count == 0)

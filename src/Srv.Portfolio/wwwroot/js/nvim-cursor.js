@@ -1,6 +1,7 @@
 // Neovim-style block cursor for the README preview, with a Neovide-like corner animation.
 import { getHeadingElements } from "./readme-headings.js";
 import { openInNewTab } from "./browser-links.js";
+import { canPreview } from "./image-viewer.js";
 
 const FAST_MS = 55;
 const SLOW_MS = 140;
@@ -1378,17 +1379,7 @@ function urlUnderCursor(atom) {
 export function imageUnderCursor() {
   if (!viewport?.isConnected || index < 0) return null;
   const atom = locate(index);
-  if (!atom.element || !(atom.node instanceof HTMLImageElement)) return null;
-  // Linked images (badges, logos) behave like links on GitHub; only images linked to themselves preview.
-  const link = atom.node.closest("a[href]");
-  if (
-    link &&
-    root.contains(link) &&
-    link.href !== atom.node.currentSrc &&
-    link.href !== atom.node.src
-  )
-    return null;
-  return atom.node;
+  return atom.element && canPreview(atom.node) ? atom.node : null;
 }
 
 export function followLink() {
