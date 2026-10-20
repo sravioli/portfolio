@@ -5,6 +5,7 @@ namespace Srv.Portfolio.Services;
 internal sealed class NavigationState
 {
     private readonly HashSet<string> _expandedFolders = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<ExplorerItem>? _entries;
 
     public bool IsWelcome { get; private set; } = true;
     public PortfolioEntry CurrentFolder { get; private set; } = PortfolioCatalog.RootEntry;
@@ -12,9 +13,14 @@ internal sealed class NavigationState
     {
         get
         {
+            if (_entries is not null)
+            {
+                return _entries;
+            }
+
             var items = new List<ExplorerItem>();
             AddVisibleEntries(PortfolioCatalog.RootEntry, 0, items);
-            return items;
+            return _entries = items.AsReadOnly();
         }
     }
     public int SelectedIndex { get; private set; }
@@ -92,6 +98,7 @@ internal sealed class NavigationState
                 {
                     _expandedFolders.Remove(item.Entry.Repository);
                 }
+                _entries = null;
                 Message = null;
                 return null;
             default:
@@ -131,6 +138,7 @@ internal sealed class NavigationState
         if (item.Kind == ExplorerItemKind.Folder && item.IsExpanded)
         {
             _expandedFolders.Remove(item.Entry!.Repository);
+            _entries = null;
         }
         else if (item.Depth > 0)
         {
@@ -181,7 +189,10 @@ internal sealed class NavigationState
         var ancestor = entry.IsProjectFile ? PortfolioCatalog.FindParent(entry) : entry;
         while (ancestor is not null && !ancestor.IsRoot)
         {
-            _expandedFolders.Add(ancestor.Repository);
+            if (_expandedFolders.Add(ancestor.Repository))
+            {
+                _entries = null;
+            }
             ancestor = PortfolioCatalog.FindParent(ancestor);
         }
 

@@ -1,10 +1,100 @@
 using Srv.Portfolio.Services;
+using Srv.Portfolio.Models;
 
 namespace Srv.Portfolio.Tests.Services;
 
 [TestFixture]
 internal sealed class NavigationStateTests
 {
+    [Test]
+    public void Entries_UnchangedExpansion_ReusesReadOnlySnapshot()
+    {
+        var state = new NavigationState();
+        var entries = state.Entries;
+
+        state.SelectIndex(1);
+        state.MoveSelection(1);
+        state.SelectEdge(last: true);
+        state.BeginCommand();
+        state.SetKeyboardEnabled(false);
+        state.CloseDocument();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.Entries, Is.SameAs(entries));
+            Assert.That(entries, Has.Count.EqualTo(5));
+            Assert.That(entries.Select(item => item.Name), Is.EqualTo(new[]
+            {
+                "README.md", "chrono/", "nvim/", "wezterm/", "wezterm-plugins/"
+            }));
+        }
+        Assert.Throws<NotSupportedException>(() => ((IList<ExplorerItem>)entries).Clear());
+    }
+
+    [Test]
+    public void OpenSelected_FolderToggle_ReplacesSnapshotWithoutMutatingPreviousListing()
+    {
+        var state = new NavigationState();
+        var collapsed = state.Entries;
+        state.SelectIndex(4);
+
+        state.OpenSelected();
+        var expanded = state.Entries;
+        state.OpenSelected();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(expanded, Is.Not.SameAs(collapsed));
+            Assert.That(expanded, Has.Count.EqualTo(17));
+            Assert.That(expanded[4].IsExpanded, Is.True);
+            Assert.That(state.Entries, Is.Not.SameAs(expanded));
+            Assert.That(state.Entries, Is.EqualTo(collapsed));
+            Assert.That(collapsed, Has.Count.EqualTo(5));
+            Assert.That(collapsed[4].IsExpanded, Is.False);
+        }
+    }
+
+    [Test]
+    public void CollapseSelected_ExpandedParent_InvalidatesOnlyWhenTreeChanges()
+    {
+        var state = new NavigationState();
+        state.NavigateTo("memo.wz");
+        var expanded = state.Entries;
+
+        state.CollapseSelected();
+        Assert.That(state.Entries, Is.SameAs(expanded));
+        state.CollapseSelected();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(state.Entries, Is.Not.SameAs(expanded));
+            Assert.That(state.Entries, Has.Count.EqualTo(5));
+            Assert.That(state.SelectedEntry.IsExpanded, Is.False);
+            Assert.That(expanded.Any(item => item.Name == "memo.wz"), Is.True);
+        }
+    }
+
+    [Test]
+    public void NavigateTo_HiddenDocument_InvalidatesSnapshotWhenAncestorsExpand()
+    {
+        var state = new NavigationState();
+        var collapsed = state.Entries;
+
+        state.NavigateTo("memo.wz");
+        var expanded = state.Entries;
+        state.NavigateTo("beacon.wz");
+        state.GoToParent();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(expanded, Is.Not.SameAs(collapsed));
+            Assert.That(expanded, Has.Count.EqualTo(17));
+            Assert.That(state.Entries, Is.SameAs(expanded));
+            Assert.That(state.SelectedEntry.Name, Is.EqualTo("beacon.wz"));
+            Assert.That(state.IsReading, Is.False);
+        }
+    }
+
     [TestCase("")]
     [TestCase("chrono")]
     [TestCase("memo.wz")]

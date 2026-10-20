@@ -5,8 +5,7 @@ import * as whichKey from "../js/which-key.js";
 import { createMotionParser, isModifierKey } from "../js/vim-motions.js";
 import { PREFIX_TIMEOUT_MS } from "../js/keyboard.js";
 import {
-  getHeadingElements,
-  readHeading,
+  createHeadingIndex,
   getActiveHeadings,
 } from "../js/readme-headings.js";
 import { openInNewTab } from "../js/browser-links.js";
@@ -35,6 +34,8 @@ let whichKeyTimer = 0;
 const motions = createMotionParser();
 const POSITION_REPORT_INTERVAL = 100;
 let highlighterPromise;
+let headingRoot;
+let headingIndex;
 
 function getHighlighter() {
   return /** @type {Window & { hljs?: { getLanguage: (name: string) => unknown, highlightElement: (element: Element) => void } }} */ (
@@ -405,12 +406,12 @@ async function reportPosition() {
         : viewport.scrollTop >= maxScroll - 1
           ? "Bot"
           : `${Math.round((viewport.scrollTop / maxScroll) * 100)}%`;
-  const headings = article
-    ? getActiveHeadings(
-        getHeadingElements(article).map((heading) => ({
-          ...readHeading(heading),
-          top: heading.getBoundingClientRect().top,
-        })),
+  if (headingRoot !== article) {
+    headingRoot = article;
+    headingIndex = article ? createHeadingIndex(article) : null;
+  }
+  const headings = headingIndex
+    ? headingIndex.active(
         (cursorPosition?.top ?? viewport.getBoundingClientRect().top + 32) + 1,
       )
     : [];
@@ -614,6 +615,8 @@ export function focusExplorer(explorer) {
 }
 
 export async function refreshPreview() {
+  headingRoot = null;
+  headingIndex = null;
   const blocks = [...document.querySelectorAll(".readme-content pre code")];
   if (
     blocks.some((block) =>
@@ -705,6 +708,8 @@ export function dispose() {
   if (positionTimer) clearTimeout(positionTimer);
   positionTimer = 0;
   lastPositionReport = 0;
+  headingRoot = null;
+  headingIndex = null;
   cursor.dispose();
   dotNetRef = undefined;
 }
