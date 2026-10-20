@@ -16,7 +16,7 @@
             <button type="button" class="tab-close" @onclick="CloseDocument" aria-label="Close document">×</button>
         </div>
         <div class="tab-actions">
-            <button type="button" @onclick="GoParent" aria-label="Go to parent">../</button>
+            <button type="button" @onclick="GoParent" aria-label="Back">Back</button>
             <button type="button" @onclick="ToggleKeyboard" aria-pressed="@State.KeyboardEnabled" title="Toggle keymaps (:set keys / :set nokeys)">Keys: @(State.KeyboardEnabled ? "on" : "off")</button>
             <button type="button" @onclick="OpenFileFinder" aria-label="Find files" title="Find files (<leader>ff)">&#xf002;</button>
             <button type="button" @onclick="OpenHelp" aria-label="Keyboard help">?</button>
