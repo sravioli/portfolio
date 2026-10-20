@@ -24,8 +24,21 @@ Thanks for your interest in improving this project.
 The root README HTML is generated under the app's `obj/` directory during builds.
 Edit `src/Srv.Portfolio.Content/Services/RootReadmeContent.cs` to change its source.
 The generator and browser use the same sanitizer and Markdown transformations.
-External README rendering is lazy-loaded; verify a Release publish in the browser
-when changing renderer dependencies or the lazy assembly list.
+External READMEs are sanitized and rendered before deployment. Prepare the ignored
+snapshot files before running the browser locally:
+
+```powershell
+dotnet run --project .\src\Srv.Portfolio.ContentGenerator -c Release -- --readmes .\src\Srv.Portfolio\wwwroot
+```
+
+This command fetches the catalog's external READMEs from GitHub and fails if any
+fetch/render fails. Normal builds/tests stay offline. Re-run generation after
+changing catalog paths or renderer behavior. See
+[README snapshots](../docs/readme-snapshots.md) for offline fixture input and
+[performance checks](../docs/performance.md) for benchmark commands and limitations.
+The generated plugin collection still lazy-loads the renderer; verify both that
+path and external snapshots in a Release browser publish when changing renderer
+dependencies or the lazy assembly list.
 
 ## Coding expectations
 

@@ -8,6 +8,7 @@
     <ShouldBeValidatedAsExecutableReference>false</ShouldBeValidatedAsExecutableReference>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Srv.Portfolio.Tests" />
     <ProjectReference Include="..\Srv.Portfolio.Rendering\Srv.Portfolio.Rendering.csproj" />
   </ItemGroup>
 </Project>

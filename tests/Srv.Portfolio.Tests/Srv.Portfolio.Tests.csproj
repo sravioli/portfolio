@@ -23,5 +23,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Srv.Portfolio\Srv.Portfolio.csproj" />
+    <ProjectReference Include="..\..\src\Srv.Portfolio.ContentGenerator\Srv.Portfolio.ContentGenerator.csproj" />
   </ItemGroup>
 </Project>

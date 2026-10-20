@@ -55,6 +55,10 @@ jobs:
           --minify
           --format=esm
           --legal-comments=none
+      - name: Pre-render external READMEs
+        run: >-
+          dotnet run --project src/Srv.Portfolio.ContentGenerator -c Release --
+          --readmes src/Srv.Portfolio/wwwroot
       - name: Publish portfolio
         run: dotnet publish src/Srv.Portfolio -c Release -o out
       - name: Prepare GitHub Pages assets

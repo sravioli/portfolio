@@ -16,7 +16,7 @@ internal sealed partial class ReadmeService(
     private const string DescriptionsStorageKey = "srv.github-descriptions";
     private static readonly TimeSpan DescriptionsLifetime = TimeSpan.FromHours(6);
 
-    private readonly Dictionary<string, string> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<(string Repository, string? Path), string> _cache = [];
     private readonly Dictionary<(string Repository, string? Path), (string Source, string Html)>
         _renderedCache = [];
     private Dictionary<string, string?>? _descriptions;
@@ -60,15 +60,24 @@ internal sealed partial class ReadmeService(
             return "No README published.";
         }
 
-        if (_cache.TryGetValue(entry.Repository, out var cached))
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = (entry.Repository, entry.ReadmePath);
+        if (_cache.TryGetValue(key, out var cached))
         {
             return cached;
         }
 
-        var uri = new Uri(GitHubUrls.RawFile(entry.Repository, entry.ReadmePath!));
-        var content = await httpClient.GetStringAsync(uri, cancellationToken).ConfigureAwait(true);
-        _cache[entry.Repository] = content;
-        return content;
+        var snapshot = await httpClient.GetFromJsonAsync(
+            ReadmeSnapshot.AssetPath(entry), ReadmeSnapshotJsonContext.Default.ReadmeSnapshot,
+            cancellationToken).ConfigureAwait(true);
+        if (snapshot is null || !snapshot.Matches(entry))
+        {
+            throw new JsonException($"Invalid README snapshot for {entry.Repository}/{entry.ReadmePath}.");
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        _renderedCache[key] = (snapshot.Source, snapshot.Html);
+        _cache[key] = snapshot.Source;
+        return snapshot.Source;
     }
 
     private async Task<string> BuildPluginReadmeAsync(CancellationToken cancellationToken)

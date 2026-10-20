@@ -482,7 +482,7 @@
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
         }
-        catch (HttpRequestException exception)
+        catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException)
         {
             if (!cancellation.IsCancellationRequested)
             {

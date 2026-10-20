@@ -39,4 +39,8 @@
       <FileWrites Include="$(IntermediateOutputPath)RootReadme.g.cs" />
     </ItemGroup>
   </Target>
+
+  <Target Name="VerifyReadmeSnapshots" BeforeTargets="ComputeFilesToPublish">
+    <Exec Command="dotnet &quot;$(MSBuildProjectDirectory)/../Srv.Portfolio.ContentGenerator/bin/$(Configuration)/net10.0/Srv.Portfolio.ContentGenerator.dll&quot; --verify-readmes &quot;$(MSBuildProjectDirectory)/wwwroot&quot;" />
+  </Target>
 </Project>

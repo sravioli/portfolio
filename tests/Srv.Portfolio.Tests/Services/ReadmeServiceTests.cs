@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Srv.Portfolio.Models;
 using Srv.Portfolio.Services;
 
 namespace Srv.Portfolio.Tests.Services;
@@ -208,7 +209,7 @@ internal sealed class ReadmeServiceTests : IDisposable
             Assert.That(
                 handler.LastRequestUri?.ToString(),
                 Is.EqualTo(
-                    "https://raw.githubusercontent.com/sravioli/chrono/main/.github/readme.md"
+                    "https://portfolio.test/subpath/" + ReadmeSnapshot.AssetPath(chrono)
                 )
             );
         }
@@ -226,8 +227,98 @@ internal sealed class ReadmeServiceTests : IDisposable
 
         Assert.That(
             handler.LastRequestUri?.ToString(),
-            Is.EqualTo("https://raw.githubusercontent.com/sravioli/nap.wz/main/README.md")
+            Is.EqualTo("https://portfolio.test/subpath/" + ReadmeSnapshot.AssetPath(PortfolioCatalog.Find("nap.wz")!))
         );
+    }
+
+    [Test]
+    public async Task GetAsync_ExternalSnapshot_ReusesSourceAndHtmlWithoutLoadingRenderer()
+    {
+        var entry = PortfolioCatalog.Find("chrono")!;
+        const string source = "# Snapshot\n\n<script>alert(1)</script>\n\n[Guide](guide.md)";
+        var expected = MarkdownProcessor.Render(source, entry);
+        using var handler = new RecordingHandler(_ => SnapshotJson(entry, source));
+        var loader = new RecordingRendererLoader();
+        var service = CreateService(handler, renderer: loader);
+
+        var first = await service.GetAsync(entry, CancellationToken.None);
+        var html = await service.RenderAsync(first, entry);
+        var repeated = await service.GetAsync(entry, CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first, Is.EqualTo(source));
+            Assert.That(repeated, Is.SameAs(first));
+            Assert.That(html, Is.EqualTo(expected));
+            Assert.That(html, Does.Not.Contain("<script"));
+            Assert.That(html, Does.Contain("/chrono/blob/main/.github/guide.md"));
+            Assert.That(loader.LoadCount, Is.Zero);
+            Assert.That(handler.RequestCount, Is.EqualTo(1));
+        }
+    }
+
+    [TestCase("null")]
+    [TestCase("{}")]
+    [TestCase("not json")]
+    [TestCase("""{"Repository":"chrono","ReadmePath":".github/readme.md","Source":null,"Html":"<p>Invalid</p>"}""")]
+    [TestCase("""{"Repository":"wrong","ReadmePath":".github/readme.md","Source":"source","Html":"<p>Invalid</p>"}""")]
+    [TestCase("""{"Repository":"chrono","ReadmePath":"wrong.md","Source":"source","Html":"<p>Invalid</p>"}""")]
+    public async Task GetAsync_InvalidSnapshot_SurfacesErrorWithoutCaching(string json)
+    {
+        var entry = PortfolioCatalog.Find("chrono")!;
+        var attempts = 0;
+        using var handler = new RecordingHandler(_ => ++attempts == 1 ? json : SnapshotJson(entry));
+        var service = CreateService(handler);
+
+        await Assert.ThrowsAsync<JsonException>(async () =>
+            await service.GetAsync(entry, CancellationToken.None));
+        var source = await service.GetAsync(entry, CancellationToken.None);
+
+        Assert.That(source, Is.EqualTo("README content"));
+        Assert.That(handler.RequestCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task GetAsync_MissingSnapshot_SurfacesHttpFailure()
+    {
+        using var handler = new RecordingHandler(status: HttpStatusCode.NotFound);
+        var service = CreateService(handler);
+        await Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await service.GetAsync(PortfolioCatalog.Find("chrono")!, CancellationToken.None));
+        Assert.That(handler.RequestCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task GetAsync_CanceledCachedSnapshot_ThrowsWithoutNewRequest()
+    {
+        using var handler = new RecordingHandler();
+        var service = CreateService(handler);
+        var entry = PortfolioCatalog.Find("chrono")!;
+        await service.GetAsync(entry, CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await service.GetAsync(entry, cancellation.Token));
+        Assert.That(handler.RequestCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task GetAsync_DifferentReadmePath_DoesNotReuseOtherSnapshot()
+    {
+        var entry = PortfolioCatalog.Find("chrono")!;
+        var other = entry with { ReadmePath = "README.md" };
+        using var handler = new RecordingHandler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith(ReadmeSnapshot.AssetPath(other), StringComparison.Ordinal)
+                ? SnapshotJson(other, "# Different")
+                : SnapshotJson(entry));
+        var service = CreateService(handler);
+
+        await service.GetAsync(entry, CancellationToken.None);
+        var source = await service.GetAsync(other, CancellationToken.None);
+
+        Assert.That(source, Is.EqualTo("# Different"));
+        Assert.That(handler.RequestCount, Is.EqualTo(2));
     }
 
     [Test]
@@ -441,7 +532,7 @@ internal sealed class ReadmeServiceTests : IDisposable
         IMarkdownRendererLoader? renderer = null
     )
     {
-        var client = new HttpClient(handler);
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://portfolio.test/subpath/") };
         _clients.Add(client);
         return new(client, storage ?? new MemoryStorage(), time ?? new ManualTimeProvider(),
             renderer ?? new RecordingRendererLoader());
@@ -472,6 +563,11 @@ internal sealed class ReadmeServiceTests : IDisposable
                 .Append(new { name = "unrelated", description = "Not a plugin" })
         );
 
+    private static string SnapshotJson(PortfolioEntry entry, string source = "README content") =>
+        JsonSerializer.Serialize(new ReadmeSnapshot(
+            entry.Repository, entry.ReadmePath!, source, MarkdownProcessor.Render(source, entry)),
+            ReadmeSnapshotJsonContext.Default.ReadmeSnapshot);
+
     private sealed class MemoryStorage : IBrowserStorage
     {
         public Dictionary<string, string> Values { get; } = [];
@@ -501,7 +597,8 @@ internal sealed class ReadmeServiceTests : IDisposable
     ) : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, string> _response =
-            response ?? (_ => "README content");
+            response ?? (request => SnapshotJson(PortfolioCatalog.Find(
+                Uri.UnescapeDataString(request.RequestUri!.Segments[^2].TrimEnd('/')))!));
         private readonly HttpStatusCode _status = status;
 
         public int RequestCount { get; private set; }
@@ -518,7 +615,7 @@ internal sealed class ReadmeServiceTests : IDisposable
                 new HttpResponseMessage(_status)
                 {
                     Content = new StringContent(
-                        _response(request),
+                        _status == HttpStatusCode.OK ? _response(request) : "Request failed",
                         System.Text.Encoding.UTF8,
                         "application/json"
                     ),
