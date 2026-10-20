@@ -869,7 +869,8 @@ a {
   color: #7fb4ca;
 }
 
-.reading-status {
+.reading-status,
+.explorer-status {
   flex-basis: 16px;
   height: 16px;
   font-size: 12px;
@@ -881,7 +882,11 @@ a {
 .reading-status .cwd-segment,
 .reading-status .file-segment,
 .reading-status .position-block,
-.reading-status .position-block::before {
+.reading-status .position-block::before,
+.explorer-status .power-arrow,
+.explorer-status .tree-count,
+.explorer-status .position-block,
+.explorer-status .position-block::before {
   height: 16px;
 }
 
@@ -974,23 +979,9 @@ a {
   padding-left: 0;
 }
 
-.explorer-status {
-  flex-basis: 16px;
-  height: 16px;
-  font-size: 12px;
-  line-height: 16px;
-}
-
 .explorer-status .status-right {
   gap: 0;
   padding-right: 0;
-}
-
-.explorer-status .power-arrow,
-.explorer-status .tree-count,
-.explorer-status .position-block,
-.explorer-status .position-block::before {
-  height: 16px;
 }
 
 .tree-mode {
