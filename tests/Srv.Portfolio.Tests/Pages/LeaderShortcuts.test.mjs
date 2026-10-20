@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importHomeModule } from "./helpers/import-source-module.mjs";
+import { importHomeModule } from "../helpers/import-source-module.mjs";
 
 const cursorStub = [
     "move", "motion", "jumpHeading", "jump", "followLink", "imageUnderCursor", "refresh", "sync", "position", "placeAt",
     "jumpToElement", "invalidate", "setNavigator", "setMoveListener", "dispose", "recordJump"
 ].map(name => `export function ${name}(...args) { globalThis.cursorCalls?.push(["${name}", ...args]); return false; }`).join("\n");
 const cursorModule = `data:text/javascript;base64,${Buffer.from(cursorStub).toString("base64")}`;
-const realWhichKey = new URL("../../src/Srv.Portfolio/wwwroot/js/which-key.js", import.meta.url).href;
+const realWhichKey = new URL("../../../src/Srv.Portfolio/wwwroot/js/which-key.js", import.meta.url).href;
 const whichKeyStub = `export { DELAY, leaderMaps, entries } from ${JSON.stringify(realWhichKey)};
 const state = globalThis.whichKey;
 export function isOpen() { return state.open; }

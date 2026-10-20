@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importSourceModule } from "./helpers/import-source-module.mjs";
+import { importSourceModule } from "./import-source-module.mjs";
 
-const pickerUrl = new URL("../../src/Srv.Portfolio/wwwroot/js/pick-menu.js", import.meta.url);
+const pickerUrl = new URL("../../../src/Srv.Portfolio/wwwroot/js/pick-menu.js", import.meta.url);
 
 test("relative dependencies are resolved without a manually maintained import list", async () => {
     const picker = await importSourceModule(pickerUrl);

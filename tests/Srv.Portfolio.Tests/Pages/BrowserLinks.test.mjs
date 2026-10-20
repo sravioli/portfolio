@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openInNewTab } from "../../src/Srv.Portfolio/wwwroot/js/browser-links.js";
-import { importHomeModule } from "./helpers/import-source-module.mjs";
+import { openInNewTab } from "../../../src/Srv.Portfolio/wwwroot/js/browser-links.js";
+import { importHomeModule } from "../helpers/import-source-module.mjs";
 
 test("new tabs preserve the URL, target, isolation features, and native return value", t => {
     const previous = globalThis.window;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as pickMenu from "../../src/Srv.Portfolio/wwwroot/js/pick-menu.js";
+import * as pickMenu from "../../../../src/Srv.Portfolio/wwwroot/js/pick-menu.js";
 const { buildHeadingTree, headingItems } = pickMenu;
 
 const nodes = buildHeadingTree([

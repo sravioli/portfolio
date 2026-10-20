@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { entries, keyLabel, leaderMaps } from "../../src/Srv.Portfolio/wwwroot/js/which-key.js";
+import { entries, keyLabel, leaderMaps } from "../../../../src/Srv.Portfolio/wwwroot/js/which-key.js";
 
 test("leader maps are flattened from the which-key tree", () => {
     assert.deepEqual([...leaderMaps()].sort(), [";", "bx", "e", "ff", "sh", "sk"]);

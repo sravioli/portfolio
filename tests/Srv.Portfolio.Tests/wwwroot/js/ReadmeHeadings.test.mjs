@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getHeadingElements, readHeading, getActiveHeadings, buildHeadingTree } from "../../src/Srv.Portfolio/wwwroot/js/readme-headings.js";
-import { buildHeadingTree as pickHeadingTree } from "../../src/Srv.Portfolio/wwwroot/js/pick-menu.js";
-import { importHomeModule } from "./helpers/import-source-module.mjs";
+import { getHeadingElements, readHeading, getActiveHeadings, buildHeadingTree } from "../../../../src/Srv.Portfolio/wwwroot/js/readme-headings.js";
+import { buildHeadingTree as pickHeadingTree } from "../../../../src/Srv.Portfolio/wwwroot/js/pick-menu.js";
+import { importHomeModule } from "../../helpers/import-source-module.mjs";
 
 const { getActiveHeadings: homeActiveHeadings } = await importHomeModule();
 

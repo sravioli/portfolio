@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMotionParser, isModifierKey } from "../../src/Srv.Portfolio/wwwroot/js/vim-motions.js";
+import { createMotionParser, isModifierKey } from "../../../../src/Srv.Portfolio/wwwroot/js/vim-motions.js";
 
 let now = 0;
 
