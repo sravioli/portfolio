@@ -90,11 +90,7 @@ export function show(title, items, { onSelect = () => { }, onBack = () => { }, o
         desc.className = "which-key-desc";
         desc.textContent = item.desc;
         row.append(key, arrow, icon, desc);
-        row.addEventListener("mousedown", event => event.preventDefault());
-        row.addEventListener("click", event => {
-            event.stopPropagation();
-            onSelect(item.key);
-        });
+        bindAction(row, () => onSelect(item.key));
         grid.append(row);
     }
     const footer = document.createElement("div");
@@ -115,12 +111,16 @@ function hint(key, label, action) {
     keyText.className = "which-key-hint-key";
     keyText.textContent = key;
     button.append(keyText, ` ${label}`);
+    bindAction(button, action);
+    return button;
+}
+
+function bindAction(button, action) {
     button.addEventListener("mousedown", event => event.preventDefault());
     button.addEventListener("click", event => {
         event.stopPropagation();
         action();
     });
-    return button;
 }
 
 // Fill columns top to bottom like which-key, sitting just above the statusline.

@@ -12,16 +12,17 @@ export function readHeading(heading) {
     };
 }
 
-function appendHeading(path, heading) {
+function pruneAncestors(path, heading) {
     while (path.length && path[path.length - 1].level >= heading.level) path.pop();
-    path.push(heading);
 }
 
 export function getActiveHeadings(headings, top) {
     const path = [];
     for (const heading of headings) {
         if (heading.top > top) break;
-        appendHeading(path, { id: heading.id, title: heading.title, level: heading.level });
+        const activeHeading = { id: heading.id, title: heading.title, level: heading.level };
+        pruneAncestors(path, activeHeading);
+        path.push(activeHeading);
     }
     return path;
 }
@@ -29,7 +30,7 @@ export function getActiveHeadings(headings, top) {
 export function buildHeadingTree(headings) {
     const path = [];
     return headings.map(heading => {
-        while (path.length && path[path.length - 1].level >= heading.level) path.pop();
+        pruneAncestors(path, heading);
         const node = { ...heading, parent: path.length ? path[path.length - 1].id : null };
         path.push(node);
         return node;

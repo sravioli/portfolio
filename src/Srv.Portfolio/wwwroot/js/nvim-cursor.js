@@ -314,19 +314,19 @@ function isBlankAt(position) {
 }
 
 function firstNonBlank(position) {
-    const lineRect = rectAt(position);
-    let current = lineEdge(position, -1);
-    let next;
-    while (lineRect && isBlankAt(current) && (next = nextVisible(current, 1)) && sameLine(next[1], lineRect)) current = next[0];
-    return current;
+    return nonBlankEdge(position, -1);
 }
 
 function lastNonBlank(position) {
+    return nonBlankEdge(position, 1);
+}
+
+function nonBlankEdge(position, direction) {
     const lineRect = rectAt(position);
-    let current = lineEdge(position, 1);
-    let previous;
-    while (lineRect && isBlankAt(current) && (previous = nextVisible(current, -1)) && sameLine(previous[1], lineRect)) {
-        current = previous[0];
+    let current = lineEdge(position, direction);
+    let next;
+    while (lineRect && isBlankAt(current) && (next = nextVisible(current, -direction)) && sameLine(next[1], lineRect)) {
+        current = next[0];
     }
     return current;
 }

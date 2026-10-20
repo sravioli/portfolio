@@ -1,6 +1,5 @@
 // Parses Vim normal-mode motion keys (`:help motion.txt`) into commands for the README cursor.
-const PREFIX_TIMEOUT_MS = 1000;
-const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "AltGraph"]);
+import { PREFIX_TIMEOUT_MS, isModifierKey as isCommonModifierKey } from "./keyboard.js";
 
 const SINGLE = {
     h: "left", ArrowLeft: "left", Backspace: "left",
@@ -51,7 +50,7 @@ const Z_PREFIXED = {
 };
 
 export function isModifierKey(key) {
-    return MODIFIER_KEYS.has(key);
+    return key === "AltGraph" || isCommonModifierKey(key);
 }
 
 export function createMotionParser({ now = () => performance.now() } = {}) {

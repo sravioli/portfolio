@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as pickMenu from "../../../../src/Srv.Portfolio/wwwroot/js/pick-menu.js";
+import { createDomFixture, TestElement } from "../../helpers/dom-fixture.mjs";
 const { buildHeadingTree, headingItems } = pickMenu;
 
 const nodes = buildHeadingTree([
@@ -91,5 +92,101 @@ test("clicking a heading with children opens its submenu", async () => {
         pickMenu.cancel();
         globalThis.document = previousDocument;
         globalThis.window = previousWindow;
+    }
+});
+
+function pickerFixture() {
+    const breadcrumb = new TestElement("nav");
+    const first = new TestElement("a");
+    first.dataset.pickMenu = "chrono";
+    first.dataset.pickCurrent = "file:README.md";
+    const second = new TestElement("a");
+    second.dataset.pickMenu = "plugins";
+    breadcrumb.querySelectorAll = selector => selector === "[data-pick-segment]" ? [first, second] : [];
+    const dom = createDomFixture({ querySelector: selector => selector === ".breadcrumb" ? breadcrumb : null });
+    return { ...dom, breadcrumb, first, second };
+}
+
+test("start without breadcrumb segments returns false without entering pick mode", () => {
+    const breadcrumb = new TestElement("nav");
+    breadcrumb.querySelectorAll = () => [];
+    const fixture = createDomFixture({ querySelector: selector => selector === ".breadcrumb" ? breadcrumb : null });
+    try {
+        assert.equal(pickMenu.start(), false);
+        assert.equal(pickMenu.isActive(), false);
+        assert.equal(breadcrumb.classList.contains("picking"), false);
+    } finally {
+        pickMenu.cancel();
+        fixture.restore();
+    }
+});
+
+test("each common modifier preserves picker labels and the following label opens that segment", async () => {
+    for (const modifier of ["Shift", "Control", "Alt", "Meta", "CapsLock"]) {
+        const fixture = pickerFixture();
+        const loaded = [];
+        pickMenu.configure({
+            loadMenu: async repository => {
+                loaded.push(repository);
+                return [{ key: "file:README.md", label: "README", kind: "file", repository: "chrono" }];
+            },
+            open() { assert.fail("Selecting a segment label must not open a file directly"); },
+            jump() { assert.fail("Selecting a segment label must not jump"); }
+        });
+        try {
+            assert.equal(pickMenu.start(), true);
+            assert.equal(fixture.first.dataset.pickLabel, "a");
+            assert.equal(fixture.second.dataset.pickLabel, "b");
+            assert.equal(fixture.breadcrumb.classList.contains("picking"), true);
+            await pickMenu.handleKey(modifier);
+            assert.equal(pickMenu.isActive(), true, `${modifier} retains selection mode`);
+            assert.equal(fixture.first.dataset.pickLabel, "a");
+            assert.equal(fixture.second.dataset.pickLabel, "b");
+
+            await pickMenu.handleKey("a");
+
+            assert.deepEqual(loaded, ["chrono"]);
+            assert.equal(pickMenu.isActive(), true);
+            assert.equal(fixture.first.dataset.pickLabel, undefined);
+            assert.equal(fixture.breadcrumb.classList.contains("picking"), false);
+            assert.equal(fixture.body.children[0].children[0].children[1].textContent, "README");
+            assert.equal(fixture.body.children[0].children[0].classList.contains("selected"), true);
+        } finally {
+            pickMenu.cancel();
+            fixture.restore();
+        }
+    }
+});
+
+test("AltGraph cancels label selection but leaves an already-open submenu untouched", async () => {
+    const fixture = pickerFixture();
+    let loads = 0;
+    let opens = 0;
+    let jumps = 0;
+    pickMenu.configure({
+        loadMenu: async () => { loads++; return [{ key: "file", label: "File", kind: "file", repository: "chrono" }]; },
+        open() { opens++; },
+        jump() { jumps++; }
+    });
+    try {
+        assert.equal(pickMenu.start(), true);
+        await pickMenu.handleKey("AltGraph");
+        assert.equal(pickMenu.isActive(), false);
+        assert.equal(fixture.first.dataset.pickLabel, undefined);
+        assert.equal(fixture.second.dataset.pickLabel, undefined);
+        assert.equal(fixture.breadcrumb.classList.contains("picking"), false);
+        assert.deepEqual([loads, opens, jumps], [0, 0, 0]);
+
+        assert.equal(pickMenu.start(), true);
+        await pickMenu.handleKey("a");
+        assert.equal(fixture.body.children.length, 1);
+        await pickMenu.handleKey("AltGraph");
+        assert.equal(pickMenu.isActive(), true);
+        assert.equal(fixture.body.children.length, 1);
+        assert.deepEqual([loads, opens, jumps], [1, 0, 0]);
+    } finally {
+        pickMenu.cancel();
+        fixture.restore();
+        pickMenu.configure({ loadMenu: async () => [], open() { }, jump() { } });
     }
 });

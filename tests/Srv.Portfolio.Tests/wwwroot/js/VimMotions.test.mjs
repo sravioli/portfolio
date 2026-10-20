@@ -72,3 +72,46 @@ test("modifier keys keep pending state and unknown keys pass through", () => {
     assert.deepEqual(parse("f", "Shift", "A"), ["pending", "pending", ["findForward", 1, false, "A"]]);
     assert.deepEqual(parse("Enter", "p", "-", ":", "?"), ["none", "none", "none", "none", "none"]);
 });
+
+test("all modifiers preserve a counted Vim prefix, including Vim-only AltGraph", () => {
+    for (const key of ["Shift", "Control", "Alt", "Meta", "CapsLock", "AltGraph"]) {
+        assert.equal(isModifierKey(key), true, `${key} is recognized by Vim`);
+        const parser = createMotionParser({ now: () => 0 });
+        assert.deepEqual(parser.feed("2"), { status: "pending" });
+        assert.deepEqual(parser.feed("g"), { status: "pending" });
+        assert.deepEqual(parser.feed(key), { status: "pending" });
+        assert.deepEqual(parser.feed("e"), {
+            status: "motion", motion: "wordEndBackward", count: 2, hasCount: true
+        });
+    }
+});
+
+test("g-e prefix distinguishes just-before, exact, and just-after timeout boundaries", () => {
+    for (const [elapsed, expected] of [[999, "wordEndBackward"], [1000, "wordEnd"], [1001, "wordEnd"]]) {
+        let time = 0;
+        const parser = createMotionParser({ now: () => time });
+        parser.feed("g");
+        time = elapsed;
+        assert.equal(parser.feed("e").motion, expected, `${elapsed}ms`);
+    }
+});
+
+test("argument prefixes never expire and ordinary prefix expiry retains the count", () => {
+    for (const [prefix, argument, motion] of [["f", "x", "findForward"], ["m", "q", "setMark"]]) {
+        let time = 0;
+        const parser = createMotionParser({ now: () => time });
+        parser.feed(prefix);
+        time = 10_000;
+        assert.equal(parser.awaitsArgument(), true);
+        assert.deepEqual(parser.feed(argument), {
+            status: "motion", motion, count: 1, hasCount: false, argument
+        });
+    }
+
+    let time = 0;
+    const parser = createMotionParser({ now: () => time });
+    parser.feed("3");
+    parser.feed("g");
+    time = 1000;
+    assert.deepEqual(parser.feed("e"), { status: "motion", motion: "wordEnd", count: 3, hasCount: true });
+});

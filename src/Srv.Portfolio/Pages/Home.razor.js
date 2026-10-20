@@ -3,6 +3,7 @@ import * as pick from "../js/pick-menu.js";
 import * as viewer from "../js/image-viewer.js";
 import * as whichKey from "../js/which-key.js";
 import { createMotionParser, isModifierKey } from "../js/vim-motions.js";
+import { PREFIX_TIMEOUT_MS } from "../js/keyboard.js";
 import { getHeadingElements, readHeading, getActiveHeadings } from "../js/readme-headings.js";
 import { openInNewTab } from "../js/browser-links.js";
 
@@ -58,7 +59,7 @@ function resetLeader() {
 
 // The sequence never times out while the which-key popup is showing, like Neovim.
 function leaderPending() {
-    return leaderPressedAt !== 0 && (whichKey.isOpen() || performance.now() - leaderPressedAt < 1000);
+    return leaderPressedAt !== 0 && (whichKey.isOpen() || performance.now() - leaderPressedAt < PREFIX_TIMEOUT_MS);
 }
 
 function scheduleWhichKey() {
@@ -142,7 +143,7 @@ function scrollHelp(dialog, event, ctrlOnly) {
     else if (page) dialog.scrollBy({ top: page * dialog.clientHeight / 2, behavior: "instant" });
     else if (key === "G") dialog.scrollTo({ top: dialog.scrollHeight, behavior: "instant" });
     else if (key === "g") {
-        if (helpPendingG && performance.now() - helpPendingG < 1000) {
+        if (helpPendingG && performance.now() - helpPendingG < PREFIX_TIMEOUT_MS) {
             helpPendingG = 0;
             dialog.scrollTo({ top: 0, behavior: "instant" });
         } else {
@@ -259,7 +260,7 @@ async function onKeyDown(event) {
             }
         } else if (reading && (key === "]" || key === "[")) {
             event.preventDefault();
-            if (pendingBracket === key && performance.now() - bracketPressedAt < 1000) {
+            if (pendingBracket === key && performance.now() - bracketPressedAt < PREFIX_TIMEOUT_MS) {
                 resetBracket();
                 key = key + key;
             } else {

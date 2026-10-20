@@ -1,11 +1,11 @@
 // dropbar.nvim-style breadcrumb picker: letter labels on each segment, then nested menus.
 import { getHeadingElements, readHeading, buildHeadingTree } from "./readme-headings.js";
+import { isModifierKey } from "./keyboard.js";
 
 export { buildHeadingTree };
 
 const LABELS = "abcdefghijklmnopqrstuvwxyz";
 const ICONS = { readme: "\u{f48a}", file: "\u{f48a}", folder: "\u{f024b}" };
-const MODIFIERS = ["Shift", "Control", "Alt", "Meta", "CapsLock"];
 
 let state = null;
 let actions = { loadMenu: async () => [], open: () => { }, jump: () => { } };
@@ -64,10 +64,7 @@ export function cancel() {
 }
 
 export async function openSegment(segment) {
-    if (state) {
-        clearLabels();
-        for (const menu of state.menus) menu.element.remove();
-    }
+    cancel();
     state = { segments: [], menus: [] };
     const session = state;
     let items;
@@ -168,7 +165,7 @@ function back() {
 }
 
 export async function handleKey(key) {
-    if (!state || MODIFIERS.includes(key)) return;
+    if (!state || isModifierKey(key)) return;
     if (!state.menus.length) {
         const segment = state.segments[LABELS.indexOf(key)];
         if (key.length === 1 && segment?.isConnected) await openSegment(segment);
