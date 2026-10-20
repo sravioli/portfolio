@@ -49,6 +49,8 @@ test("single-key motions map to cursor commands", () => {
     "%",
     ";",
     ",",
+    "n",
+    "N",
   ];
   assert.deepEqual(
     parse(...keys).map((result) => result[0]),
@@ -80,8 +82,19 @@ test("single-key motions map to cursor commands", () => {
       "matchOrPercent",
       "repeatFind",
       "repeatFindReverse",
+      "searchNext",
+      "searchPrevious",
     ],
   );
+});
+
+test("counts n and N search-match motions", () => {
+  assert.deepEqual(parse("1", "0", "N", "n"), [
+    "pending",
+    "pending",
+    ["searchPrevious", 10, true],
+    ["searchNext", 1, false],
+  ]);
 });
 
 test("counts prefix motions and zero continues a count", () => {

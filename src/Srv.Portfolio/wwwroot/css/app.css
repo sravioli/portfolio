@@ -952,6 +952,7 @@ a {
 }
 
 .statusline {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: stretch;
@@ -962,6 +963,30 @@ a {
   font-size: 13px;
   line-height: 20px;
   white-space: nowrap;
+}
+
+.search-position {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: block;
+  max-width: 50vw;
+  overflow: hidden;
+  padding: 0 10px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: #ffa066;
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.search-position[hidden] {
+  display: none;
 }
 
 .status-left,
@@ -1123,10 +1148,10 @@ a {
 
 .reading-status,
 .explorer-status {
-  flex-basis: 16px;
-  height: 16px;
+  flex-basis: 20px;
+  height: 20px;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 20px;
 }
 
 .reading-status .mode-block,
@@ -1139,7 +1164,7 @@ a {
 .explorer-status .tree-count,
 .explorer-status .position-block,
 .explorer-status .position-block::before {
-  height: 16px;
+  height: 20px;
 }
 
 .reading-status .mode-block {
@@ -1151,7 +1176,7 @@ a {
 }
 
 .insert-status .mode-block {
-  height: 16px;
+  height: 20px;
   padding: 0 8px;
 }
 
@@ -1873,4 +1898,21 @@ kbd {
   .portfolio-shell:not(:has(.command-status, .command-message:not(:empty))) .command-line {
     display: none;
   }
+}
+
+.readme-search-match {
+  background: var(--gold);
+  color: var(--bg);
+}
+
+.readme-search-match.active {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.readme-search-hidden .readme-search-match,
+.readme-search-hidden .readme-search-match.active {
+  background: transparent;
+  color: inherit;
+  outline: none;
 }

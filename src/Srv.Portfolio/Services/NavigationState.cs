@@ -38,6 +38,7 @@ internal sealed class NavigationState
     public bool IsHelpOpen { get; set; }
     public bool IsCommandMode { get; set; }
     public string CommandText { get; set; } = string.Empty;
+    public string SearchQuery { get; set; } = string.Empty;
 
     /// <summary>Message shown in the command line; assigning it shows an informational message.</summary>
     public string? Message
@@ -68,6 +69,13 @@ internal sealed class NavigationState
     {
         IsCommandMode = true;
         CommandText = ":";
+        Message = null;
+    }
+
+    public void BeginSearch()
+    {
+        IsCommandMode = true;
+        CommandText = "/";
         Message = null;
     }
 
@@ -191,6 +199,12 @@ internal sealed class NavigationState
         IsWelcome = false;
         SelectDocument(entry);
         return OpenDocument(entry);
+    }
+
+    public PortfolioEntry? NavigateToReadme(string path)
+    {
+        var entry = PortfolioCatalog.FindByReadmePath(path);
+        return entry is null ? null : NavigateTo(entry.Repository);
     }
 
     private PortfolioEntry OpenDocument(PortfolioEntry entry)

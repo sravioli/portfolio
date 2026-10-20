@@ -14,6 +14,8 @@ internal enum KeyAction
     CloseExplorer,
     OpenFileFinder,
     CloseCommand,
+    NextSearchMatch,
+    PreviousSearchMatch,
     HalfPageUp,
     HalfPageDown,
     NextHeading,
@@ -47,6 +49,12 @@ internal sealed class KeymapHandler
             if (key == ":" && !state.IsHelpOpen)
             {
                 state.BeginCommand();
+                return KeyAction.FocusCommand;
+            }
+
+            if (key == "/" && !state.IsHelpOpen)
+            {
+                state.BeginSearch();
                 return KeyAction.FocusCommand;
             }
 
@@ -102,6 +110,10 @@ internal sealed class KeymapHandler
                 return state.IsReading || state.IsWelcome
                     ? KeyAction.FollowLink
                     : KeyAction.Ignored;
+            case "n" when state.IsReading && !explorerFocused && state.SearchQuery.Length > 0:
+                return KeyAction.NextSearchMatch;
+            case "N" when state.IsReading && !explorerFocused && state.SearchQuery.Length > 0:
+                return KeyAction.PreviousSearchMatch;
         }
 
         if (key == "x" && waitingForSecondG && state.IsWelcome)
@@ -219,6 +231,12 @@ internal sealed class KeymapHandler
         if (key == ":")
         {
             state.BeginCommand();
+            return KeyAction.FocusCommand;
+        }
+
+        if (key == "/")
+        {
+            state.BeginSearch();
             return KeyAction.FocusCommand;
         }
 

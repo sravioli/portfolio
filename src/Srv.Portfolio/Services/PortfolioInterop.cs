@@ -16,6 +16,11 @@ internal sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
     private const string JumpHeadingMethod = "jumpHeading";
     private const string CopyTextMethod = "copyText";
     private const string FocusCommandMethod = "focusCommand";
+    private const string SetCommandCaretToEndMethod = "setCommandCaretToEnd";
+    private const string SearchReadmeMethod = "searchReadme";
+    private const string ClearReadmeSearchMethod = "clearReadmeSearch";
+    private const string HideReadmeSearchHighlightsMethod = "hideReadmeSearchHighlights";
+    private const string MoveSearchMatchMethod = "moveSearchMatch";
     private const string FocusPreviewMethod = "focusPreview";
     private const string FocusExplorerMethod = "focusExplorer";
     private const string ApplyLeaderMethod = "applyLeader";
@@ -59,6 +64,21 @@ internal sealed class PortfolioInterop(IJSRuntime jsRuntime) : IAsyncDisposable
         _module.InvokeBooleanIfLoadedAsync(CopyTextMethod, false, text);
 
     public ValueTask FocusCommandAsync() => _module.InvokeVoidIfLoadedAsync(FocusCommandMethod);
+
+    public ValueTask SetCommandCaretToEndAsync() =>
+        _module.InvokeVoidIfLoadedAsync(SetCommandCaretToEndMethod);
+
+    public ValueTask<int> SearchReadmeAsync(string query) =>
+        _module?.InvokeAsync<int>(SearchReadmeMethod, query) ?? ValueTask.FromResult(0);
+
+    public ValueTask ClearReadmeSearchAsync() =>
+        _module.InvokeVoidIfLoadedAsync(ClearReadmeSearchMethod);
+
+    public ValueTask HideReadmeSearchHighlightsAsync() =>
+        _module.InvokeVoidIfLoadedAsync(HideReadmeSearchHighlightsMethod);
+
+    public ValueTask<int> MoveSearchMatchAsync(int direction) =>
+        _module?.InvokeAsync<int>(MoveSearchMatchMethod, direction) ?? ValueTask.FromResult(-1);
 
     public ValueTask FocusPreviewAsync() => _module.InvokeVoidIfLoadedAsync(FocusPreviewMethod);
 

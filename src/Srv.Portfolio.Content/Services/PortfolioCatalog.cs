@@ -53,6 +53,33 @@ internal static class PortfolioCatalog
             );
     }
 
+    public static PortfolioEntry? FindByReadmePath(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        var normalizedPath = path.Replace('\\', '/');
+        while (normalizedPath.StartsWith("./", StringComparison.Ordinal))
+        {
+            normalizedPath = normalizedPath[2..];
+        }
+
+        return AllEntries().FirstOrDefault(entry =>
+            entry.HasReadme
+            && string.Equals(
+                GetReadmePath(entry),
+                normalizedPath,
+                StringComparison.OrdinalIgnoreCase
+            )
+        );
+    }
+
+    public static string GetReadmePath(PortfolioEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        var repositoryPath = string.Join('/', GetPath(entry).Skip(1));
+        var readmePath = entry.ReadmePath ?? "README.md";
+        return repositoryPath.Length > 0 ? repositoryPath + "/" + readmePath : readmePath;
+    }
+
     public static PortfolioEntry? FindParent(PortfolioEntry child) =>
         AllEntries().FirstOrDefault(entry => entry.Children.Contains(child));
 

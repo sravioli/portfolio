@@ -111,6 +111,11 @@ internal sealed class PortfolioInteropTests
         await interop.JumpHeadingAsync(3).ConfigureAwait(true);
         Assert.That(await interop.CopyTextAsync("copy me").ConfigureAwait(true), Is.False);
         await interop.FocusCommandAsync().ConfigureAwait(true);
+        await interop.SetCommandCaretToEndAsync().ConfigureAwait(true);
+        Assert.That(await interop.SearchReadmeAsync("needle").ConfigureAwait(true), Is.Zero);
+        await interop.ClearReadmeSearchAsync().ConfigureAwait(true);
+        await interop.HideReadmeSearchHighlightsAsync().ConfigureAwait(true);
+        Assert.That(await interop.MoveSearchMatchAsync(1).ConfigureAwait(true), Is.EqualTo(-1));
         await interop.FocusPreviewAsync().ConfigureAwait(true);
         await interop.FocusExplorerAsync(new ElementReference("explorer")).ConfigureAwait(true);
         await interop.ApplyLeaderAsync(",").ConfigureAwait(true);
@@ -126,6 +131,8 @@ internal sealed class PortfolioInteropTests
         var module = new RecordingJsModule();
         module.Results["followLink"] = true;
         module.Results["copyText"] = false;
+        module.Results["searchReadme"] = 3;
+        module.Results["moveSearchMatch"] = 1;
         var runtime = new RecordingJsRuntime(module);
         var interop = new PortfolioInterop(runtime);
         await using var interopLifetime = interop.ConfigureAwait(true);
@@ -143,6 +150,11 @@ internal sealed class PortfolioInteropTests
         await interop.JumpHeadingAsync(3).ConfigureAwait(true);
         Assert.That(await interop.CopyTextAsync("exact copy text").ConfigureAwait(true), Is.False);
         await interop.FocusCommandAsync().ConfigureAwait(true);
+        await interop.SetCommandCaretToEndAsync().ConfigureAwait(true);
+        Assert.That(await interop.SearchReadmeAsync("needle").ConfigureAwait(true), Is.EqualTo(3));
+        await interop.ClearReadmeSearchAsync().ConfigureAwait(true);
+        await interop.HideReadmeSearchHighlightsAsync().ConfigureAwait(true);
+        Assert.That(await interop.MoveSearchMatchAsync(-1).ConfigureAwait(true), Is.EqualTo(1));
         await interop.FocusPreviewAsync().ConfigureAwait(true);
         await interop.FocusExplorerAsync(explorer).ConfigureAwait(true);
         await interop.ApplyLeaderAsync(",").ConfigureAwait(true);
@@ -163,6 +175,11 @@ internal sealed class PortfolioInteropTests
                         "jumpHeading",
                         "copyText",
                         "focusCommand",
+                        "setCommandCaretToEnd",
+                        "searchReadme",
+                        "clearReadmeSearch",
+                        "hideReadmeSearchHighlights",
+                        "moveSearchMatch",
                         "focusPreview",
                         "focusExplorer",
                         "applyLeader",
@@ -179,19 +196,24 @@ internal sealed class PortfolioInteropTests
             Assert.That(module.Calls[6].Arguments, Is.EqualTo(new object?[] { "exact copy text" }));
             Assert.That(module.Calls[7].Arguments, Is.Empty);
             Assert.That(module.Calls[8].Arguments, Is.Empty);
-            Assert.That(module.Calls[9].Arguments[0], Is.TypeOf<ElementReference>());
+            Assert.That(module.Calls[9].Arguments, Is.EqualTo(new object?[] { "needle" }));
+            Assert.That(module.Calls[10].Arguments, Is.Empty);
+            Assert.That(module.Calls[11].Arguments, Is.Empty);
+            Assert.That(module.Calls[12].Arguments, Is.EqualTo(new object?[] { -1 }));
+            Assert.That(module.Calls[13].Arguments, Is.Empty);
+            Assert.That(module.Calls[14].Arguments[0], Is.TypeOf<ElementReference>());
         }
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(module.Calls[9].Arguments[0], Is.EqualTo(explorer));
-            Assert.That(module.Calls[10].Arguments, Is.EqualTo(new object?[] { "," }));
-            Assert.That(module.Calls[11].Arguments[0], Is.TypeOf<ElementReference>());
+            Assert.That(module.Calls[14].Arguments[0], Is.EqualTo(explorer));
+            Assert.That(module.Calls[15].Arguments, Is.EqualTo(new object?[] { "," }));
+            Assert.That(module.Calls[16].Arguments[0], Is.TypeOf<ElementReference>());
         }
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(module.Calls[11].Arguments[0], Is.EqualTo(help));
-            Assert.That(module.Calls[11].Arguments, Is.EqualTo(new object?[] { help, true }));
+            Assert.That(module.Calls[16].Arguments[0], Is.EqualTo(help));
+            Assert.That(module.Calls[16].Arguments, Is.EqualTo(new object?[] { help, true }));
         }
     }
 

@@ -11,6 +11,9 @@ internal enum CommandAction
     SetKeyboard,
     SetDevNotation,
     SetExplorer,
+    SearchReadme,
+    ClearSearchHighlight,
+    OpenReadme,
     Reload,
     Invalid,
 }
@@ -22,8 +25,32 @@ internal static partial class CommandHandler
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(commandText);
 
-        var command = commandText.TrimStart(':').Trim();
+        var isSearch = commandText.StartsWith('/');
+        var command = isSearch ? commandText[1..].Trim() : commandText.TrimStart(':').Trim();
         state.EndCommand();
+        if (isSearch)
+        {
+            if (command.Length == 0)
+            {
+                command = state.SearchQuery;
+            }
+
+            if (command.Length == 0)
+            {
+                state.ShowError("E35: No previous regular expression");
+                return CommandAction.Invalid;
+            }
+
+            if (state.CurrentDocument is null)
+            {
+                state.ShowError($"E486: Pattern not found: {command}");
+                return CommandAction.Invalid;
+            }
+
+            state.SearchQuery = command;
+            return CommandAction.SearchReadme;
+        }
+
         var leaderAssignment = LeaderAssignmentRegex().Match(command);
         if (leaderAssignment.Success)
         {
@@ -60,6 +87,15 @@ internal static partial class CommandHandler
         {
             state.IsHelpOpen = true;
             return CommandAction.OpenHelp;
+        }
+
+        if (
+            command.Equals("nohl", StringComparison.OrdinalIgnoreCase)
+            || command.Equals("nohlsearch", StringComparison.OrdinalIgnoreCase)
+            || command.Equals("nohls", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return CommandAction.ClearSearchHighlight;
         }
 
         var booleanOption = BooleanOptionRegex().Match(command);
@@ -100,11 +136,26 @@ internal static partial class CommandHandler
             return CommandAction.SetExplorer;
         }
 
+        var editSeparator = command.IndexOfAny([' ', '\t']);
+        var editCommand = editSeparator < 0 ? command : command[..editSeparator];
         if (
-            command.Equals("e", StringComparison.OrdinalIgnoreCase)
-            || command.Equals("edit", StringComparison.OrdinalIgnoreCase)
+            editCommand.Equals("e", StringComparison.OrdinalIgnoreCase)
+            || editCommand.Equals("edit", StringComparison.OrdinalIgnoreCase)
         )
         {
+            var path = editSeparator < 0 ? string.Empty : command[(editSeparator + 1)..].Trim();
+            if (path.Length > 0)
+            {
+                if (state.NavigateToReadme(path) is null)
+                {
+                    state.ShowError($"E484: Can't open file {path}");
+                    return CommandAction.Invalid;
+                }
+
+                state.IsExplorerOpen = true;
+                return CommandAction.OpenReadme;
+            }
+
             if (state.CurrentDocument is null)
             {
                 state.ShowError("E32: No file name");

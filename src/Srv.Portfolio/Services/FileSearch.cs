@@ -61,12 +61,7 @@ internal static class FileSearch
         ];
     }
 
-    private static string BuildPath(PortfolioEntry entry)
-    {
-        var repositoryPath = string.Join('/', PortfolioCatalog.GetPath(entry).Skip(1));
-        return (repositoryPath.Length > 0 ? repositoryPath + "/" : "")
-            + (entry.ReadmePath ?? "README.md");
-    }
+    private static string BuildPath(PortfolioEntry entry) => PortfolioCatalog.GetReadmePath(entry);
 
     private sealed record SearchEntry(PortfolioEntry Entry, string Path);
 }

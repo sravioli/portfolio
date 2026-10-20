@@ -1,4 +1,5 @@
 import * as cursor from "../js/nvim-cursor.js";
+import * as readmeSearch from "../js/readme-search.js";
 import * as pick from "../js/pick-menu.js";
 import * as viewer from "../js/image-viewer.js";
 import * as whichKey from "../js/which-key.js";
@@ -264,10 +265,10 @@ async function onKeyDown(event) {
   if (!keyboardEnabled) {
     resetLeader();
     resetBracket();
-    // `:` stays available so `:set keys` can turn the keymaps back on.
-    if (event.key === ":" && !ctrlOnly) {
+    // `:` and `/` remain available when keymaps are disabled.
+    if ((event.key === ":" || event.key === "/") && !ctrlOnly) {
       event.preventDefault();
-      await invokeKey(":", false);
+      await invokeKey(event.key, false);
     }
     return;
   }
@@ -373,7 +374,10 @@ async function onKeyDown(event) {
           "-",
           "g",
           "G",
+          "n",
+          "N",
           ":",
+          "/",
           "?",
         ].includes(key) ||
         (reading && key === "p") ||
@@ -387,6 +391,10 @@ async function runMotion(result) {
   if (result.status !== "motion") return;
   if (result.motion === "followLink") {
     await invokeKey("gx", false);
+    return;
+  }
+  if (result.motion === "searchNext" || result.motion === "searchPrevious") {
+    moveSearchMatch(result.motion === "searchNext" ? 1 : -1, result.count);
     return;
   }
   cursor.motion(result.motion, result.count, {
@@ -690,6 +698,7 @@ export function focusExplorer(explorer) {
 export async function refreshPreview() {
   headingRoot = null;
   headingIndex = null;
+  readmeSearch.clear();
   const blocks = [...document.querySelectorAll(".readme-content pre code")];
   applyCodeWrap(codeWrap);
   if (
@@ -757,6 +766,38 @@ export function focusCommand() {
   /** @type {HTMLInputElement | null} */ (
     document.querySelector("#command-input")
   )?.focus();
+}
+
+export function searchReadme(query) {
+  const count = readmeSearch.search(query);
+  if (count > 0) {
+    cursor.invalidate();
+    cursor.jumpToElement(readmeSearch.activeMatch());
+  }
+  return count;
+}
+
+export function clearReadmeSearch() {
+  readmeSearch.clear();
+}
+
+export function hideReadmeSearchHighlights() {
+  readmeSearch.hideHighlights();
+}
+
+export function moveSearchMatch(direction, count = 1) {
+  const index = readmeSearch.move(direction, count);
+  if (index >= 0) cursor.jumpToElement(readmeSearch.activeMatch());
+  return index;
+}
+
+export function setCommandCaretToEnd() {
+  requestAnimationFrame(() => {
+    const input = /** @type {HTMLInputElement | null} */ (
+      document.querySelector("#command-input")
+    );
+    if (input) input.setSelectionRange(input.value.length, input.value.length);
+  });
 }
 
 export function focusPreview() {

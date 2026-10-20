@@ -39,6 +39,8 @@ const SINGLE = {
   "%": "matchOrPercent",
   ";": "repeatFind",
   ",": "repeatFindReverse",
+  n: "searchNext",
+  N: "searchPrevious",
 };
 
 const G_PREFIXED = {
