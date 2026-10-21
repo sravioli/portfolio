@@ -111,7 +111,7 @@
                 {
                     @if (State.IsRawView)
                     {
-                        <pre class="raw-readme" data-repository="@State.CurrentDocument?.Repository">@foreach (var line in _rawLines){<span class="raw-line">@line</span>}</pre>
+                        <RawDocument Lines="_rawLines" Repository="@State.CurrentDocument?.Repository" />
                     }
                     else
                     {
