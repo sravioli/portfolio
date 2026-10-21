@@ -184,7 +184,7 @@
                 <span class="branch-segment"><span aria-hidden="true">&#xe0a0;</span> main</span>
             </div>
             <div class="status-right">
-                <span class="byte-size">@FormatFileSize(System.Text.Encoding.UTF8.GetByteCount(_documentSource ?? string.Empty)) <span aria-hidden="true">&#xf0214;</span></span>
+                <span class="byte-size">@DocumentSize <span aria-hidden="true">&#xf0214;</span></span>
                 <span class="encoding">utf-8</span>
                 <span class="file-format" title="Unix line endings" aria-label="Unix line endings">&#xe712;</span>
                 <span class="filetype">@(State.IsRawView ? "TEXT" : "MARKDOWN")</span>
@@ -392,14 +392,49 @@
     private bool _narrowLayout;
     private bool _desktopExplorerOpen = true;
     private bool _syncedExplorerOpen;
+    private PortfolioEntry? _statusPathFolder;
+    private ((string Head, string Tail) Full, (string Head, string Tail) Short) _statusPaths;
+    private string? _sizedSource;
+    private string _documentSize = "0b";
 
     private string ExplorerAttribute =>
         !_explorerReady ? "pending" : State.IsExplorerOpen ? "open" : "closed";
 
-    private (string Head, string Tail) FullPath => SplitPath("/home", PortfolioCatalog.GetPath(State.CurrentFolder));
+    private (string Head, string Tail) FullPath => StatusPaths.Full;
 
-    private (string Head, string Tail) ShortPath =>
-        SplitPath("~", PortfolioCatalog.GetPath(State.CurrentFolder).Skip(1), abbreviate: true);
+    private (string Head, string Tail) ShortPath => StatusPaths.Short;
+
+    // The status line reads both paths on every render (including each cursor report), so they are rebuilt only
+    // when the current folder changes.
+    private ((string Head, string Tail) Full, (string Head, string Tail) Short) StatusPaths
+    {
+        get
+        {
+            if (!ReferenceEquals(_statusPathFolder, State.CurrentFolder))
+            {
+                var path = PortfolioCatalog.GetPath(State.CurrentFolder);
+                _statusPaths = (SplitPath("/home", path), SplitPath("~", path.Skip(1), abbreviate: true));
+                _statusPathFolder = State.CurrentFolder;
+            }
+
+            return _statusPaths;
+        }
+    }
+
+    // UTF-8 byte counting scans the whole README, so the formatted size is cached per loaded source.
+    private string DocumentSize
+    {
+        get
+        {
+            if (!ReferenceEquals(_sizedSource, _documentSource))
+            {
+                _documentSize = FormatFileSize(System.Text.Encoding.UTF8.GetByteCount(_documentSource ?? string.Empty));
+                _sizedSource = _documentSource;
+            }
+
+            return _documentSize;
+        }
+    }
 
     // The head is what gets ellipsized, so the current folder name always stays visible.
     // Abbreviated paths keep one letter per parent folder, like fish's prompt_pwd.
