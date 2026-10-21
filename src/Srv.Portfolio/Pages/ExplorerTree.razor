@@ -36,7 +36,22 @@
 }
 
 @code {
+    private bool _changed = true;
+
     [Parameter, EditorRequired] public IReadOnlyList<ExplorerItem> Entries { get; set; } = [];
     [Parameter] public int SelectedIndex { get; set; }
     [Parameter] public EventCallback<int> OnOpen { get; set; }
+
+    // NavigationState replaces its immutable entry list whenever the tree changes, so the tree only needs to
+    // re-render when that reference or the selection changes. Click handlers read OnOpen when invoked.
+    public override Task SetParametersAsync(ParameterView parameters)
+    {
+        var entries = Entries;
+        var selectedIndex = SelectedIndex;
+        parameters.SetParameterProperties(this);
+        _changed = !ReferenceEquals(entries, Entries) || selectedIndex != SelectedIndex;
+        return base.SetParametersAsync(ParameterView.Empty);
+    }
+
+    protected override bool ShouldRender() => _changed;
 }
