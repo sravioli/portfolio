@@ -699,7 +699,11 @@ export async function refreshPreview() {
   headingRoot = null;
   headingIndex = null;
   readmeSearch.clear();
-  const blocks = [...document.querySelectorAll(".readme-content pre code")];
+  const blocks = [
+    ...document.querySelectorAll(
+      ".readme-content pre code:not([data-highlighted]):not([data-highlight-skip])",
+    ),
+  ];
   applyCodeWrap(codeWrap);
   if (
     blocks.some((block) =>

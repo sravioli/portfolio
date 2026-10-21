@@ -44,7 +44,8 @@ test("position reports reuse the heading index and reset it across preview lifec
   globalThis.document = {
     addEventListener() {}, removeEventListener() {},
     querySelector: (selector) => selector === ".preview-scroll" ? viewport : null,
-    querySelectorAll: (selector) => selector === ".readme-content pre code" ? codeBlocks : [],
+    // Pre-highlighted snapshot blocks are excluded by the selector, so only client work is returned.
+    querySelectorAll: (selector) => selector === ".readme-content pre code:not([data-highlighted]):not([data-highlight-skip])" ? codeBlocks : [],
   };
   const stub = `
     export function setNavigator() {}
@@ -78,10 +79,12 @@ test("position reports reuse the heading index and reset it across preview lifec
 
   elements = [heading("during-highlight", 2, 0)];
   codeBlocks = [{ classList: ["language-csharp"] }];
-  globalThis.window.hljs = { getLanguage: () => true, highlightElement() {} };
+  const highlighted = [];
+  globalThis.window.hljs = { getLanguage: () => true, highlightElement: (block) => highlighted.push(block) };
   const refreshing = home.refreshPreview();
   assert.deepEqual((await report())[5], [{ id: "during-highlight", title: "during-highlight", level: 2 }]);
   await refreshing;
+  assert.deepEqual(highlighted, codeBlocks);
   codeBlocks = [];
   assert.equal(queries, 3);
 

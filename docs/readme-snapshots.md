@@ -8,7 +8,8 @@ rewriting, internal links, and heading IDs keep their existing behavior.
 
 The browser fetches only the requested snapshot, then caches source and HTML for its
 repository and README path during the session. Opening an external snapshot does
-not download the Markdown renderer. External content updates on the next deployment;
+not download the Markdown renderer. Its code blocks are already syntax-highlighted,
+so it does not download highlight.js either. External content updates on the next deployment;
 reloading the page does not fetch a newer README from GitHub.
 
 ## Generate and publish
@@ -18,10 +19,17 @@ Install .NET 10 and the WebAssembly tools, then run:
 ```powershell
 dotnet workload install wasm-tools
 dotnet run --project .\src\Srv.Portfolio.ContentGenerator -c Release -- --readmes .\src\Srv.Portfolio\wwwroot
+node .\src\tools\highlight-readme-snapshots.mjs .\src\Srv.Portfolio\wwwroot
 dotnet publish .\src\Srv.Portfolio -c Release
 ```
 
-The deployment workflow runs snapshot generation before publishing. GitHub fetch,
+The deployment workflow runs snapshot generation and then highlighting before
+publishing. The highlighting step loads the same `wwwroot/lib/highlight/highlight.min.js`
+build that the browser uses and calls its `highlightElement` on each sanitized
+`language-*` block, so the resulting markup matches what the browser would produce.
+Blocks in languages that build lacks get `data-highlight-skip`. Blocks the step cannot
+decode safely are left unchanged, and the browser still highlights those. Rerunning
+the step changes nothing. GitHub fetch,
 rendering, and filesystem failures stop generation and therefore deployment.
 Publishing independently verifies every catalog snapshot exists and matches its
 repository/path. Missing or invalid browser snapshots use the existing load-error
@@ -61,4 +69,7 @@ Work moves from each visitor's browser to the deployment machine; the renderer
 algorithm itself is not faster. JSON includes both source and HTML, so each file is
 larger than raw Markdown alone. Files load on demand, not during application boot.
 The renderer remains available for the dynamic collection rather than being
-unsafely removed. See [performance checks](performance.md) for measurements.
+unsafely removed. Pre-highlighted code markup makes snapshots larger, but this growth
+is smaller than the highlight.js download it replaces. The browser still loads
+highlight.js for the dynamic collection and for any block it must highlight itself.
+See [performance checks](performance.md) for measurements.

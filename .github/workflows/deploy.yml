@@ -59,6 +59,8 @@ jobs:
         run: >-
           dotnet run --project src/Srv.Portfolio.ContentGenerator -c Release --
           --readmes src/Srv.Portfolio/wwwroot
+      - name: Pre-highlight README code blocks
+        run: node src/tools/highlight-readme-snapshots.mjs src/Srv.Portfolio/wwwroot
       - name: Publish portfolio
         run: dotnet publish src/Srv.Portfolio -c Release -o out
       - name: Prepare GitHub Pages assets
