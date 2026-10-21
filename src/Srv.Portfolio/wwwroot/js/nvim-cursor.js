@@ -12,6 +12,8 @@ const JUMP_LIMIT = 100;
 let viewport;
 let root;
 let cursorElement;
+let drawnElement = null;
+let drawnBox = null;
 let atoms = [];
 let starts = [];
 let nodeIndex = new Map();
@@ -778,21 +780,72 @@ function reducedMotion() {
   );
 }
 
+function cornerBox(points) {
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  return box(
+    left,
+    top,
+    Math.max(1, Math.max(...xs) - left),
+    Math.max(1, Math.max(...ys) - top),
+  );
+}
+
+function containsBox(outer, inner) {
+  return (
+    inner.left >= outer.left &&
+    inner.top >= outer.top &&
+    inner.right <= outer.right &&
+    inner.bottom <= outer.bottom
+  );
+}
+
+function unionBox(first, second) {
+  const left = Math.min(first.left, second.left);
+  const top = Math.min(first.top, second.top);
+  return box(
+    left,
+    top,
+    Math.max(first.right, second.right) - left,
+    Math.max(first.bottom, second.bottom) - top,
+  );
+}
+
 function draw() {
   if (!cursorElement?.isConnected)
     cursorElement = viewport?.querySelector(".nvim-cursor");
   if (!cursorElement || !corners) return;
-  const xs = corners.map(([x]) => x);
-  const ys = corners.map(([, y]) => y);
-  const left = Math.min(...xs);
-  const top = Math.min(...ys);
-  const width = Math.max(1, Math.max(...xs) - left);
-  const height = Math.max(1, Math.max(...ys) - top);
-  cursorElement.style.transform = `translate(${left}px, ${top}px)`;
-  cursorElement.style.width = `${width}px`;
-  cursorElement.style.height = `${height}px`;
-  cursorElement.style.clipPath = `polygon(${corners.map(([x, y]) => `${x - left}px ${y - top}px`).join(", ")})`;
-  cursorElement.dataset.visible = "true";
+  if (drawnElement !== cursorElement) {
+    drawnElement = cursorElement;
+    drawnBox = null;
+  }
+  let frameBox = cornerBox(corners);
+  // Resizing this absolutely positioned element relayouts the scroll container, so a solid cursor keeps
+  // one box per animation and only its clip path changes per frame. Media outlines are inset shadows at
+  // the box edge and keep an exact box.
+  if (animation && !cursorElement.classList.contains("on-media")) {
+    frameBox =
+      drawnBox && containsBox(drawnBox, frameBox)
+        ? drawnBox
+        : unionBox(frameBox, cornerBox(animation.map(({ to }) => to)));
+  }
+  if (
+    !drawnBox ||
+    drawnBox.left !== frameBox.left ||
+    drawnBox.top !== frameBox.top ||
+    drawnBox.width !== frameBox.width ||
+    drawnBox.height !== frameBox.height
+  ) {
+    cursorElement.style.transform = `translate(${frameBox.left}px, ${frameBox.top}px)`;
+    cursorElement.style.width = `${frameBox.width}px`;
+    cursorElement.style.height = `${frameBox.height}px`;
+    drawnBox = frameBox;
+  }
+  cursorElement.style.clipPath = `polygon(${corners.map(([x, y]) => `${x - frameBox.left}px ${y - frameBox.top}px`).join(", ")})`;
+  if (cursorElement.dataset.visible !== "true")
+    cursorElement.dataset.visible = "true";
 }
 
 function easeOutCubic(value) {
@@ -812,9 +865,10 @@ function step(now) {
       from[1] + (to[1] - from[1]) * eased,
     ];
   });
+  // The final frame draws without an animation so the cursor settles on its exact box.
+  if (!running) animation = null;
   draw();
   if (running) frame = requestAnimationFrame(step);
-  else animation = null;
 }
 
 function animateTo(target, instant) {

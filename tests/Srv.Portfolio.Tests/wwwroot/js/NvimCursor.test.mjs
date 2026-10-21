@@ -127,7 +127,7 @@ function createRange() {
   };
 }
 
-async function createCursor(lines) {
+async function createCursor(lines, { cursorElement = null } = {}) {
   const previous = {
     document: globalThis.document,
     Node: globalThis.Node,
@@ -156,6 +156,7 @@ async function createCursor(lines) {
       return this.bounds;
     },
     querySelector(selector) {
+      if (selector === ".nvim-cursor") return cursorElement;
       return selector === ".readme-content, .raw-readme" ? this.root : null;
     },
     scrollTo({ top }) {
@@ -224,6 +225,82 @@ test("raw-line motions reach first and last nonblank, line start, and line end c
   assert.equal(cursor.position().column, 1);
   assert.equal(cursor.move("lineEnd"), true);
   assert.equal(cursor.position().column, 6);
+});
+
+test("cursor animation resizes its box once per motion and otherwise updates only the clip path", async (t) => {
+  const previous = {
+    window: globalThis.window,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    cancelAnimationFrame: globalThis.cancelAnimationFrame,
+  };
+  let pendingFrame = null;
+  globalThis.window = {};
+  globalThis.requestAnimationFrame = (callback) => {
+    pendingFrame = callback;
+    return 1;
+  };
+  globalThis.cancelAnimationFrame = () => {
+    pendingFrame = null;
+  };
+  const writes = [];
+  const style = new Proxy(
+    {},
+    {
+      set(target, key, value) {
+        writes.push(key);
+        target[key] = value;
+        return true;
+      },
+    },
+  );
+  const element = {
+    isConnected: true,
+    style,
+    dataset: {},
+    classList: { toggle() {}, contains: () => false },
+  };
+  const { cursor, restore } = await createCursor(["abc", "def"], {
+    cursorElement: element,
+  });
+  t.after(() => {
+    restore();
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[name];
+      else globalThis[name] = value;
+    }
+  });
+  assert.equal(element.dataset.visible, "true");
+  assert.equal(style.transform, "translate(0px, 10px)");
+  assert.equal(style.height, "20px");
+
+  writes.length = 0;
+  assert.equal(cursor.move("down"), true);
+  const start = performance.now();
+  let frames = 0;
+  for (const offset of [10, 25, 50, 90, 1000]) {
+    assert.ok(pendingFrame, `frame ${frames} should be scheduled`);
+    const callback = pendingFrame;
+    pendingFrame = null;
+    callback(start + offset);
+    frames++;
+    if (frames === 1) {
+      // The first frame's box covers the rest of the path down to line 2's bottom edge.
+      const top = Number(/translate\(0px, ([\d.]+)px\)/.exec(style.transform)[1]);
+      assert.ok(top > 10 && top < 30);
+      assert.equal(top + Number.parseFloat(style.height), 50);
+    }
+  }
+  assert.equal(pendingFrame, null);
+  assert.equal(writes.filter((key) => key === "height").length, 2);
+  assert.equal(writes.filter((key) => key === "width").length, 2);
+  assert.equal(writes.filter((key) => key === "clipPath").length, frames);
+  assert.equal(style.transform, "translate(0px, 30px)");
+  assert.equal(style.width, "10px");
+  assert.equal(style.height, "20px");
+  assert.equal(
+    style.clipPath,
+    "polygon(0px 0px, 10px 0px, 10px 20px, 0px 20px)",
+  );
 });
 
 test("blank and empty raw lines stay within their own line atoms", async (t) => {
