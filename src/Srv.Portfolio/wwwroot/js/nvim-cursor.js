@@ -478,6 +478,16 @@ function lineCount() {
   );
 }
 
+/**
+ * Returns the indexed raw-line count for the given raw document, or null when the cursor has not indexed it.
+ * @param {Element | null} element
+ */
+export function rawLineCount(element) {
+  return element && element === root && root.isConnected
+    ? rawLineIndex.size
+    : null;
+}
+
 function lineTarget(line) {
   const clamped = Math.min(Math.max(1, line), lineCount());
   let position;

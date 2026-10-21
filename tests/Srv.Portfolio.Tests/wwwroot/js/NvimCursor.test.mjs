@@ -199,6 +199,7 @@ async function createCursor(lines, { cursorElement = null } = {}) {
   cursor.refresh();
   return {
     cursor,
+    root,
     restore() {
       cursor.dispose();
       globalThis.document = previous.document;
@@ -225,6 +226,15 @@ test("raw-line motions reach first and last nonblank, line start, and line end c
   assert.equal(cursor.position().column, 1);
   assert.equal(cursor.move("lineEnd"), true);
   assert.equal(cursor.position().column, 6);
+});
+
+test("raw line count comes from the cursor index only for the indexed raw document", async (t) => {
+  const { cursor, root, restore } = await createCursor(["a", "", "b"]);
+  t.after(restore);
+
+  assert.equal(cursor.rawLineCount(root), 3);
+  assert.equal(cursor.rawLineCount({}), null);
+  assert.equal(cursor.rawLineCount(null), null);
 });
 
 test("cursor animation resizes its box once per motion and otherwise updates only the clip path", async (t) => {

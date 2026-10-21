@@ -420,7 +420,7 @@ async function reportPosition() {
     viewport.querySelector(".readme-content")
   );
   const total = raw
-    ? raw.querySelectorAll(".raw-line").length
+    ? (cursor.rawLineCount(raw) ?? raw.querySelectorAll(".raw-line").length)
     : Number(article?.dataset.totalLines || 1);
   const lineHeight =
     Number.parseFloat(
