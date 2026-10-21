@@ -82,6 +82,28 @@ network latency. Local boot resource counts and decoded sizes are diagnostics on
 loopback does not reproduce CDN transfer, compression, or network latency, and the
 harness does not minify its input. No timing thresholds are enforced in unit tests.
 
+## Cursor and raw-view interaction benchmark
+
+```powershell
+node .\tests\performance\interaction.mjs .\out\performance\wwwroot
+```
+
+The harness boots the publish in headless Edge, opens a fixed 200-section README,
+and drives spaced and burst `j`/`k` motions in rendered and raw views, raw toggles,
+and explorer navigation. It prints one JSON line per workload with CDP task, script,
+layout, and recalc-style time, layout counts per key press, and latency median/p95.
+The final line reports boot timing, decoded resource sizes, and retained heap after
+a forced GC. `--profile` adds a CPU profile summary; `--trace` attributes layout
+invalidations. Single-shot workloads such as toggles and startup are noisy, so
+interleave baseline and candidate runs and compare medians of at least three runs.
+Prefer per-press task and layout figures over latency, which is frame-aligned.
+
+The cursor keeps its box fixed for each animation, covering the current and target
+positions, and changes only `clip-path` per frame, which avoids per-frame layout.
+Media outlines still size exactly per frame. The raw view renders as a separate
+component that skips diffing its lines unless the document changes; the explorer
+tree likewise skips renders when its entries and selection are unchanged.
+
 ## Verified README snapshot results
 
 Measured on Windows x64, .NET 10.0.12 / SDK 10.0.401, Node 26.3.0, and headless
