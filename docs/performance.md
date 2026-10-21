@@ -104,6 +104,47 @@ Media outlines still size exactly per frame. The raw view renders as a separate
 component that skips diffing its lines unless the document changes; the explorer
 tree likewise skips renders when its entries and selection are unchanged.
 
+## Deploy-time code highlighting benchmark
+
+```powershell
+node .\src\tools\highlight-readme-snapshots.mjs .\src\Srv.Portfolio\wwwroot
+node .\tests\performance\interaction.mjs .\out\performance\wwwroot --snapshots [--network]
+```
+
+`--snapshots` opens every published snapshot in the explorer, without interception.
+For each open it reports when the content rendered, when every `language-*` block
+was highlighted or skipped, CDP task and script time, long tasks, whether
+`highlight.min.js` was fetched, the snapshot's size, and hashes of the rendered
+document and its code blocks. It then toggles raw/rendered five times on the
+document with the most code blocks. `--network` gzips responses like GitHub Pages.
+After boot it also applies Lighthouse's mobile throttling: 150 ms RTT, 1.6 Mbps
+down, 675 kbps up. Compare builds made from the same local snapshot files.
+
+The results below are medians of four interleaved runs per build, on the same
+environment as the results that follow. The input was 13 local snapshots with 189
+tagged code blocks: 187 were highlighted and 2 PowerShell blocks were skipped. The
+code-block hashes matched between builds in every run, so the highlighted DOM is
+identical. Baseline and final runs both showed one document-level hash difference,
+in non-code content.
+
+| Workload / metric | Client highlighting | Deploy-time highlighting | Absolute change | Change |
+| --- | ---: | ---: | ---: | ---: |
+| First code README open, throttled, until highlighted | 665.9 ms | 271.6 ms | -394.3 ms | -59.2% |
+| First code README open, throttled, CDP task time | 192.6 ms | 96.0 ms | -96.6 ms | -50.2% |
+| All 13 opens, throttled, sum until highlighted | 3,751.1 ms | 3,298.2 ms | -452.9 ms | -12.1% |
+| Rendered toggle on 34-block README, loopback median | 65.1 ms | 35.8 ms | -29.3 ms | -45.0% |
+| `highlight.min.js` requests | 1 | 0 | -1 | -100% |
+| Retained JS heap after GC, loopback | 4.83 MB | 3.83 MB | -1.00 MB | -20.8% |
+| All 13 snapshot JSON files, gzip bytes | 91,404 B | 105,789 B | +14,385 B | +15.7% |
+
+The first open avoids a second, dependent request for highlight.js (43,287 B
+gzipped), as well as its compile and highlighting work. Later opens and rendered
+toggles skip the client-side highlighting pass and its `innerHTML` replacement. For
+warm opens on loopback, task time differences stayed within noise. The trade-off
+is larger snapshots: each document grew by 0.3-2.7 KB transferred, and the total
+uncompressed size grew by 21.0%. Even opening all
+13 documents transfers less in total than the single highlight.js download.
+
 ## Verified README snapshot results
 
 Measured on Windows x64, .NET 10.0.12 / SDK 10.0.401, Node 26.3.0, and headless

@@ -4,11 +4,17 @@ import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { join, extname, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { once } from "node:events";
+import { gzipSync } from "node:zlib";
 
-// Usage: node interaction.mjs <published wwwroot> [--profile] [--trace]
+// Usage: node interaction.mjs <published wwwroot> [--profile] [--trace] [--snapshots] [--network]
+// --snapshots opens the published README snapshots instead of the intercepted 200-section fixture.
+// --network gzips responses like GitHub Pages and, after boot, throttles to Lighthouse's mobile profile.
 if (!process.argv[2]) throw new Error("Pass the published wwwroot directory.");
 const root = resolve(process.argv[2]);
 const profileCpu = process.argv.includes("--profile");
+const snapshotMode = process.argv.includes("--snapshots");
+const networkMode = process.argv.includes("--network");
+const gzipCache = new Map();
 const SECTIONS = 200;
 const SPACED_PRESSES = 40;
 const BURST_PRESSES = 60;
@@ -20,7 +26,13 @@ const server = createServer(async (req, res) => {
   try {
     const file = path === root || path.endsWith(sep) ? join(path, "index.html") : path;
     const content = await readFile(file);
-    res.writeHead(200, { "Content-Type": types[extname(file)] ?? "application/octet-stream", "Cache-Control": "no-store" }).end(content);
+    const headers = { "Content-Type": types[extname(file)] ?? "application/octet-stream", "Cache-Control": "no-store" };
+    if (networkMode && types[extname(file)] && /\bgzip\b/.test(req.headers["accept-encoding"] ?? "")) {
+      if (!gzipCache.has(file)) gzipCache.set(file, gzipSync(content));
+      res.writeHead(200, { ...headers, "Content-Encoding": "gzip" }).end(gzipCache.get(file));
+      return;
+    }
+    res.writeHead(200, headers).end(content);
   } catch {
     res.writeHead(404).end("Not found");
   }
@@ -110,7 +122,7 @@ try {
   await call("Fetch.enable", { patterns: [
     { urlPattern: "https://raw.githubusercontent.com/*" },
     { urlPattern: "https://api.github.com/*" },
-    { urlPattern: origin + "/readmes/*" },
+    ...(snapshotMode ? [] : [{ urlPattern: origin + "/readmes/*" }]),
   ] });
   await call("Page.navigate", { url: origin });
   const deadline = Date.now() + 60000;
@@ -258,52 +270,140 @@ try {
     return { status, statusText, sleep, frame, until, press, spaced, burst, stats, longTasks };
   })(); true`);
 
-  const opened = await measure("open 200-section README", `(async () => {
-    const p = window.__perf;
-    const folder = [...document.querySelectorAll(".entry")].find(e => e.textContent.includes("chrono/"));
-    if (folder.getAttribute("aria-expanded") !== "true") { folder.click(); await p.until(() => folder.getAttribute("aria-expanded") === "true"); }
-    const tasksBefore = p.longTasks.length;
-    const start = performance.now();
-    folder.nextElementSibling.click();
-    await p.until(() => document.querySelector(".readme-content h1")?.textContent === "Interaction fixture");
-    const renderedMs = performance.now() - start;
-    await p.until(() => document.querySelectorAll(".readme-content pre code.hljs").length === ${SECTIONS});
-    const highlightedMs = performance.now() - start;
-    await p.until(() => document.querySelector(".nvim-cursor")?.dataset.visible === "true");
-    await p.until(() => /001\\//.test(p.statusText()));
-    await p.sleep(200);
-    return { renderedMs, highlightedMs, longTasks: p.longTasks.length - tasksBefore, maxLongTaskMs: Math.max(0, ...p.longTasks.slice(tasksBefore)) };
-  })()`, 1);
-  const results = [opened];
-  results.push(await measure("rendered j/k spaced", `window.__perf.spaced(["j"], ${SPACED_PRESSES})`, SPACED_PRESSES));
-  results.push(await measure("rendered j burst", `window.__perf.burst("j", ${BURST_PRESSES})`, BURST_PRESSES));
-  results.push(await measure("raw toggle", `(async () => {
-    const p = window.__perf;
-    const start = performance.now();
-    p.press("p");
-    await p.until(() => document.querySelectorAll(".raw-line").length > 0 && document.querySelector(".nvim-cursor")?.dataset.visible === "true");
-    const ms = performance.now() - start;
-    await p.until(() => p.statusText().includes("TEXT"));
-    return { ms, statusMs: performance.now() - start, rawLines: document.querySelectorAll(".raw-line").length };
-  })()`, 1));
-  results.push(await measure("raw j spaced", `window.__perf.spaced(["j"], ${SPACED_PRESSES})`, SPACED_PRESSES));
-  results.push(await measure("raw j burst", `window.__perf.burst("j", ${BURST_PRESSES})`, BURST_PRESSES));
-  results.push(await measure("rendered toggle", `(async () => {
-    const p = window.__perf;
-    const start = performance.now();
-    p.press("p");
-    await p.until(() => document.querySelector(".readme-content h1") && p.statusText().includes("MARKDOWN"));
-    return { ms: performance.now() - start };
-  })()`, 1));
-  await evaluate(`(async () => {
-    const p = window.__perf;
-    p.press("-");
-    await p.until(() => document.querySelector(".portfolio-shell").dataset.reading === "false");
-    document.querySelector(".entry.selected").focus();
-    await p.sleep(200);
-  })()`);
-  results.push(await measure("explorer j/k spaced", `window.__perf.spaced(["j", "k"], ${SPACED_PRESSES}, () => document.querySelector(".entry.selected"))`, SPACED_PRESSES));
-  results.push(await measure("explorer j burst", `window.__perf.burst("j", 12, () => document.querySelector(".entry.selected"))`, 12));
+  if (networkMode) {
+    await call("Network.enable");
+    await call("Network.emulateNetworkConditions", { offline: false, latency: 150, downloadThroughput: 1638.4 * 1024 / 8, uploadThroughput: 675 * 1024 / 8 });
+  }
+  if (snapshotMode) {
+    const { readdir } = await import("node:fs/promises");
+    const repositories = (await readdir(join(root, "readmes"), { withFileTypes: true }))
+      .filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+    await evaluate(`window.__perf.open = (() => {
+      const entry = name => [...document.querySelectorAll(".entry")].find(e => e.lastElementChild?.textContent.trim() === name);
+      const expand = async folder => {
+        if (folder.getAttribute("aria-expanded") === "true") return;
+        folder.click();
+        await window.__perf.until(() => folder.getAttribute("aria-expanded") === "true");
+      };
+      const codeBlocks = () => [...document.querySelectorAll(".readme-content pre code")];
+      const hash = text => { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0; return h.toString(16); };
+      // Mirrors refreshPreview: language blocks end highlighted, or skipped when hljs lacks the language.
+      const language = b => [...b.classList].find(c => c.startsWith("language-"))?.slice(9);
+      const settled = b => !language(b) || b.dataset.highlighted || b.hasAttribute("data-highlight-skip") || (window.hljs && !window.hljs.getLanguage(language(b)));
+      const highlighted = () => codeBlocks().every(settled);
+      // Expands parents outside the measured window and returns the README entry to click.
+      const prepare = async repository => {
+        let target = entry(repository) ?? entry(repository + "/");
+        if (!target) { await expand(entry("wezterm-plugins/") ?? entry("wezterm-plugins")); target = entry(repository); }
+        if (target.hasAttribute("aria-expanded")) { await expand(target); target = target.nextElementSibling; }
+        window.__perf.target = target;
+        await window.__perf.sleep(300);
+      };
+      const run = async repository => {
+        const p = window.__perf;
+        const content = document.querySelector(".readme-content");
+        for (const child of content?.children ?? []) child.__stale = true;
+        const hljsBefore = performance.getEntriesByType("resource").filter(e => e.name.includes("highlight.min.js")).length;
+        const tasksBefore = p.longTasks.length;
+        const start = performance.now();
+        p.target.click();
+        await p.until(() => { const first = document.querySelector(".readme-content")?.firstElementChild; return first && !first.__stale; });
+        const renderedMs = performance.now() - start;
+        await p.until(highlighted);
+        const readyMs = performance.now() - start;
+        await p.sleep(300);
+        const snapshot = performance.getEntriesByType("resource").filter(e => e.name.includes("/readmes/" + encodeURIComponent(repository) + "/")).at(-1);
+        return {
+          repository, renderedMs, readyMs,
+          codeBlocks: codeBlocks().length,
+          highlighterFetched: performance.getEntriesByType("resource").filter(e => e.name.includes("highlight.min.js")).length > hljsBefore,
+          snapshotBytes: snapshot?.decodedBodySize,
+          snapshotTransferBytes: snapshot?.transferSize,
+          longTasks: p.longTasks.length - tasksBefore,
+          maxLongTaskMs: Math.max(0, ...p.longTasks.slice(tasksBefore)),
+          docHash: hash(document.querySelector(".readme-content").innerHTML.replaceAll(" data-highlight-skip=\\"\\"", "")),
+          codeHash: hash(codeBlocks().map(b => b.outerHTML.replace(" data-highlight-skip=\\"\\"", "")).join("\\n")),
+        };
+      };
+      // Raw/rendered round trips; the rendered half re-creates the code blocks from the snapshot markup.
+      const toggles = async count => {
+        const p = window.__perf;
+        const raw = [], rendered = [];
+        for (let i = 0; i < count; i++) {
+          let start = performance.now();
+          p.press("p");
+          await p.until(() => document.querySelectorAll(".raw-line").length > 0 && p.statusText().includes("TEXT"));
+          raw.push(performance.now() - start);
+          await p.sleep(150);
+          start = performance.now();
+          p.press("p");
+          await p.until(() => codeBlocks().length > 0 && highlighted() && p.statusText().includes("MARKDOWN"));
+          rendered.push(performance.now() - start);
+          await p.sleep(150);
+        }
+        return { toggles: count, raw: p.stats(raw), rendered: p.stats(rendered) };
+      };
+      return { prepare, run, toggles };
+    })(); true`);
+    const results = [];
+    for (const repository of repositories) {
+      await evaluate(`window.__perf.open.prepare(${JSON.stringify(repository)})`);
+      results.push(await measure(`open ${repository}`, `window.__perf.open.run(${JSON.stringify(repository)})`, 1));
+    }
+    const largest = results.reduce((a, b) => (b.codeBlocks > a.codeBlocks ? b : a));
+    if (largest !== results.at(-1)) {
+      await evaluate(`window.__perf.open.prepare(${JSON.stringify(largest.repository)})`);
+      await evaluate(`window.__perf.open.run(${JSON.stringify(largest.repository)})`);
+    }
+    await measure(`toggle ${largest.repository}`, "window.__perf.open.toggles(5)", 5);
+  } else {
+    const opened = await measure("open 200-section README", `(async () => {
+      const p = window.__perf;
+      const folder = [...document.querySelectorAll(".entry")].find(e => e.textContent.includes("chrono/"));
+      if (folder.getAttribute("aria-expanded") !== "true") { folder.click(); await p.until(() => folder.getAttribute("aria-expanded") === "true"); }
+      const tasksBefore = p.longTasks.length;
+      const start = performance.now();
+      folder.nextElementSibling.click();
+      await p.until(() => document.querySelector(".readme-content h1")?.textContent === "Interaction fixture");
+      const renderedMs = performance.now() - start;
+      await p.until(() => document.querySelectorAll(".readme-content pre code.hljs").length === ${SECTIONS});
+      const highlightedMs = performance.now() - start;
+      await p.until(() => document.querySelector(".nvim-cursor")?.dataset.visible === "true");
+      await p.until(() => /001\\//.test(p.statusText()));
+      await p.sleep(200);
+      return { renderedMs, highlightedMs, longTasks: p.longTasks.length - tasksBefore, maxLongTaskMs: Math.max(0, ...p.longTasks.slice(tasksBefore)) };
+    })()`, 1);
+    const results = [opened];
+    results.push(await measure("rendered j/k spaced", `window.__perf.spaced(["j"], ${SPACED_PRESSES})`, SPACED_PRESSES));
+    results.push(await measure("rendered j burst", `window.__perf.burst("j", ${BURST_PRESSES})`, BURST_PRESSES));
+    results.push(await measure("raw toggle", `(async () => {
+      const p = window.__perf;
+      const start = performance.now();
+      p.press("p");
+      await p.until(() => document.querySelectorAll(".raw-line").length > 0 && document.querySelector(".nvim-cursor")?.dataset.visible === "true");
+      const ms = performance.now() - start;
+      await p.until(() => p.statusText().includes("TEXT"));
+      return { ms, statusMs: performance.now() - start, rawLines: document.querySelectorAll(".raw-line").length };
+    })()`, 1));
+    results.push(await measure("raw j spaced", `window.__perf.spaced(["j"], ${SPACED_PRESSES})`, SPACED_PRESSES));
+    results.push(await measure("raw j burst", `window.__perf.burst("j", ${BURST_PRESSES})`, BURST_PRESSES));
+    results.push(await measure("rendered toggle", `(async () => {
+      const p = window.__perf;
+      const start = performance.now();
+      p.press("p");
+      await p.until(() => document.querySelector(".readme-content h1") && p.statusText().includes("MARKDOWN"));
+      return { ms: performance.now() - start };
+    })()`, 1));
+    await evaluate(`(async () => {
+      const p = window.__perf;
+      p.press("-");
+      await p.until(() => document.querySelector(".portfolio-shell").dataset.reading === "false");
+      document.querySelector(".entry.selected").focus();
+      await p.sleep(200);
+    })()`);
+    results.push(await measure("explorer j/k spaced", `window.__perf.spaced(["j", "k"], ${SPACED_PRESSES}, () => document.querySelector(".entry.selected"))`, SPACED_PRESSES));
+    results.push(await measure("explorer j burst", `window.__perf.burst("j", 12, () => document.querySelector(".entry.selected"))`, 12));
+  }
   // Collect first so the retained JS heap is comparable between runs instead of reflecting GC timing.
   await call("HeapProfiler.collectGarbage");
   console.log(JSON.stringify({ product, boot, heapUsedBytes: (await metrics()).JSHeapUsedSize }));
