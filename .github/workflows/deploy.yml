@@ -33,11 +33,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      - name: Subset application symbol font
+      - name: Prepare application symbol font
         run: |
           python -m pip install -r src/tools/font-requirements.txt
           python src/tools/subset-symbol-font.py
-          python -m unittest discover -s tests/tools
       - name: Install dependencies
         run: npm ci
       - name: Type-check
@@ -51,6 +50,8 @@ jobs:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
           PAGES_SITE_URL: ${{ steps.pages.outputs.origin }}
         run: npm run build
+      - name: Verify generated fonts
+        run: python -m unittest discover -s tests/tools
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

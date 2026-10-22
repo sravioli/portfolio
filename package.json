@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && python src/tools/subset-fira-font.py",
     "preview": "astro preview",
     "check": "tsc --noEmit",
     "test": "node --test \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\""

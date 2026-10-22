@@ -23,6 +23,13 @@ Thanks for your interest in improving this project.
    - `npm run build`
    - `npm run preview`
 
+Production builds also subset Fira Code from generated page content. Install Python
+3.14 and the font tools before running `npm run build`:
+
+```powershell
+python -m pip install -r .\src\tools\font-requirements.txt
+```
+
 Builds fetch the catalog's external READMEs from GitHub and fail if any fetch fails.
 For offline builds, point `PORTFOLIO_README_DIR` at a directory with one
 `<repository>.md` file per external catalog entry. Edit
