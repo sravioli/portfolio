@@ -4,7 +4,7 @@
     "erasableSyntaxOnly": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "types": ["node"]
+    "types": ["node", "astro/client"]
   },
   "include": [".astro/types.d.ts", "src/**/*", "tests/**/*", "astro.config.mjs"],
   "exclude": ["dist"]
