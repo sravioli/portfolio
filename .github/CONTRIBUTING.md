@@ -10,35 +10,34 @@ Thanks for your interest in improving this project.
 
 ## Development setup
 
-1. Install .NET 10 SDK and the native WebAssembly workload:
-   - `dotnet workload install wasm-tools`
-2. Restore dependencies:
-   - `dotnet restore .\Srv.Portfolio.slnx`
-3. Build:
-   - `dotnet build .\Srv.Portfolio.slnx`
+1. Install Node.js 24 or later, then install dependencies:
+   - `npm ci`
+2. Run the development server:
+   - `npm run dev`
+3. Type-check:
+   - `npm run check`
 4. Run tests:
-   - `dotnet test --solution .\Srv.Portfolio.slnx`
-   - Tests use NUnit and the native Microsoft.Testing.Platform runner selected by `global.json`.
-   - For coverage: `dotnet test --solution .\Srv.Portfolio.slnx --coverlet --coverlet-output-format cobertura --results-directory TestResults`
+   - `npm test`
+   - Tests use the built-in `node:test` runner.
+5. Build the static site into `dist/`, then preview it:
+   - `npm run build`
+   - `npm run preview`
 
-The root README HTML is generated under the app's `obj/` directory during builds.
-Edit `src/Srv.Portfolio.Content/Services/RootReadmeContent.cs` to change its source.
-The generator and browser use the same sanitizer and Markdown transformations.
-External READMEs are sanitized and rendered before deployment. Prepare the ignored
-snapshot files before running the browser locally:
+Builds fetch the catalog's external READMEs from GitHub and fail if any fetch fails.
+For offline builds, point `PORTFOLIO_README_DIR` at a directory with one
+`<repository>.md` file per external catalog entry. Edit
+`src/build/readmes.ts` to change the root README. See
+[README snapshots](../docs/readme-snapshots.md) for the content pipeline and
+[performance](../docs/performance.md) for payload measurements.
+
+The symbol font is subset to the glyphs used in `src/`. After adding or removing a
+Nerd Font icon, regenerate it with Python 3.14:
 
 ```powershell
-dotnet run --project .\src\Srv.Portfolio.ContentGenerator -c Release -- --readmes .\src\Srv.Portfolio\wwwroot
+python -m pip install -r .\src\tools\font-requirements.txt
+python .\src\tools\subset-symbol-font.py
+python -m unittest discover -s .\tests\tools
 ```
-
-This command fetches the catalog's external READMEs from GitHub and fails if any
-fetch/render fails. Normal builds/tests stay offline. Re-run generation after
-changing catalog paths or renderer behavior. See
-[README snapshots](../docs/readme-snapshots.md) for offline fixture input and
-[performance checks](../docs/performance.md) for benchmark commands and limitations.
-The generated plugin collection still lazy-loads the renderer; verify both that
-path and external snapshots in a Release browser publish when changing renderer
-dependencies or the lazy assembly list.
 
 ## Coding expectations
 
@@ -50,7 +49,7 @@ dependencies or the lazy assembly list.
 
 - [ ] The change is scoped to a single purpose.
 - [ ] Tests were added or updated when behavior changed.
-- [ ] `dotnet build` and `dotnet test` pass locally.
+- [ ] `npm run check`, `npm test`, and `npm run build` pass locally.
 - [ ] README/docs were updated when user-facing behavior changed.
 
 ## Reporting bugs

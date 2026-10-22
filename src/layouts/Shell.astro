@@ -1,0 +1,23 @@
+---
+import Base from "./Base.astro";
+import { documentMetrics } from "../build/documents.ts";
+import { ERROR_UI, EXPLORER_SCRIPT, renderShell, type ViewModel } from "../lib/view.ts";
+
+interface Props {
+  title: string;
+  model: ViewModel;
+}
+
+const { title, model } = Astro.props;
+const metrics = JSON.stringify(await documentMetrics()).replaceAll("<", "\\u003c");
+---
+
+<Base title={title}>
+  <Fragment set:html={renderShell(model)} />
+  <script is:inline set:html={EXPLORER_SCRIPT} />
+  <script is:inline type="application/json" id="portfolio-data" set:html={metrics} />
+  <Fragment set:html={ERROR_UI} />
+  <script>
+    import "../client/main.ts";
+  </script>
+</Base>

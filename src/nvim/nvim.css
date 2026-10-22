@@ -1,0 +1,264 @@
+/* Neovim emulation: dropbar pick labels and menu, which-key, cursor, command line, search highlights. Loaded after app.css. */
+
+.breadcrumb [data-pick-label]::before {
+  content: attr(data-pick-label);
+  margin-right: 6px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.pick-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 180px;
+  max-width: min(420px, 90vw);
+  max-height: 60vh;
+  padding: 2px 0;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px var(--shadow);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.pick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 8px;
+  border-left: 2px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pick-item.current {
+  border-left-color: var(--gold);
+}
+
+.pick-item.selected {
+  background: var(--selection);
+}
+
+.pick-icon {
+  flex-shrink: 0;
+  color: var(--blue);
+}
+
+.pick-text {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pick-arrow {
+  flex-shrink: 0;
+  min-width: 1ch;
+  color: var(--muted);
+}
+
+.which-key {
+  position: fixed;
+  left: 50%;
+  bottom: var(--which-key-bottom, 0);
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  z-index: 60;
+  padding: 14px 24px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.which-key-title {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  padding: 0 6px;
+  background: var(--surface);
+  color: var(--gold);
+  font-size: 11px;
+  transform: translate(-50%, -50%);
+}
+
+.which-key-grid {
+  display: grid;
+  grid-auto-columns: minmax(0, 300px);
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--which-key-rows, 4), auto);
+  column-gap: 24px;
+}
+
+.which-key-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 1px 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.which-key-item:hover {
+  background: var(--raised);
+}
+
+.which-key-key {
+  min-width: 1ch;
+  color: var(--blue);
+  text-align: right;
+}
+
+.which-key-arrow {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.which-key-icon {
+  color: var(--green);
+}
+
+.which-key-icon:empty {
+  display: none;
+}
+
+.which-key-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.which-key-item.group .which-key-desc {
+  color: var(--purple);
+  font-weight: 700;
+}
+
+.which-key-footer {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.which-key-hint {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-style: italic;
+  cursor: pointer;
+}
+
+.which-key-hint-key {
+  color: var(--blue);
+  font-style: normal;
+}
+
+.nvim-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: none;
+  background: var(--text);
+  mix-blend-mode: difference;
+  pointer-events: none;
+  will-change: transform, clip-path;
+}
+
+.nvim-cursor[data-visible] {
+  display: block;
+}
+
+.nvim-cursor.on-media {
+  background: transparent;
+  mix-blend-mode: normal;
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+
+.preview-scroll:not(:focus) .nvim-cursor {
+  opacity: 0.4;
+}
+
+.command-line {
+  display: flex;
+  align-items: center;
+  flex: 0 0 32px;
+  height: 32px;
+  gap: 8px;
+  padding: 2px 8px;
+  background: var(--bg);
+}
+
+.command-field {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.command-line input {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  outline: none;
+}
+
+.command-message {
+  position: absolute;
+  inset: 0;
+  padding: 4px 6px;
+  overflow: hidden;
+  color: var(--text);
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-message.is-error {
+  color: var(--error);
+}
+
+.command-line input:focus {
+  border-color: var(--line);
+}
+
+.command-line input::placeholder {
+  color: var(--comment);
+}
+
+/* Short viewports (landscape phones): drop the command line until it is needed. */
+@media (max-height: 500px) and (pointer: coarse) {
+  .portfolio-shell:not(:has(.command-status, .command-message:not(:empty))) .command-line {
+    display: none;
+  }
+}
+
+.readme-search-match {
+  background: var(--search);
+  color: var(--text);
+}
+
+.readme-search-match.active {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.readme-search-hidden .readme-search-match,
+.readme-search-hidden .readme-search-match.active {
+  background: transparent;
+  color: inherit;
+  outline: none;
+}

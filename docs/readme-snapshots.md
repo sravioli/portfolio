@@ -1,75 +1,59 @@
 # README snapshots
 
-External READMEs are deployment-time snapshots, not live browser fetches.
-The content generator fetches each external catalog README from GitHub and runs the
-same renderer and sanitizer used for the root README. Each same-origin JSON file
-contains the original Markdown and sanitized HTML. Raw view, copying, resource URL
-rewriting, internal links, and heading IDs keep their existing behavior.
+External READMEs are build-time snapshots, not live browser fetches. `npm run build`
+fetches each catalog README from `raw.githubusercontent.com`, renders it once, and
+writes three static files per document:
 
-The browser fetches only the requested snapshot, then caches source and HTML for its
-repository and README path during the session. Opening an external snapshot does
-not download the Markdown renderer. Its code blocks are already syntax-highlighted,
-so it does not download highlight.js either. External content updates on the next deployment;
-reloading the page does not fetch a newer README from GitHub.
+- `/<slug>/index.html`: the full page, with the article already in the markup.
+- `/fragments/<key>.html`: the rendered article body only.
+- `/raw/<key>.md`: the original Markdown, for the raw view and copying.
 
-## Generate and publish
+Opening a document from the explorer or finder fetches only its fragment; the raw
+Markdown loads on demand or on idle after a deep link. Both are cached for the rest
+of the session. Content updates on the next deployment; reloading the page does not
+fetch a newer README from GitHub.
 
-Install .NET 10 and the WebAssembly tools, then run:
+## Rendering
+
+`src/build/markdown.ts` parses Markdown with `remark-parse` and `remark-gfm`, converts
+it with `remark-rehype` and `rehype-raw`, then applies the portfolio transforms:
+
+- An allowlist sanitizer. Disallowed elements are dropped with their content, and
+  only `http`, `https`, and `mailto` URLs survive.
+- GitHub alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`) get an icon,
+  title and colored border using the active Wave/Lotus palette.
+- Expandable `<details>` / `<summary>` sections keep their Markdown content and
+  initial `open` state. Event handlers and unsafe nested content are still removed.
+- GFM tables, strikethrough, autolinks and task lists are supported. Task-list
+  checkboxes are read-only; other input controls are removed.
+- Relative image and link URLs resolve against the repository and README path.
+- Headings get unique slug IDs. In-page anchors are rewritten to those IDs; anchors
+  without a matching heading lose their `href`.
+- Links to other catalog repositories open inside the portfolio.
+- GitHub attachment videos become `<video>` embeds.
+- Code blocks get a wrap toggle and are highlighted with `lowlight` (highlight.js
+  grammars), so the browser never downloads a highlighter.
+
+The root README and the WezTerm plugin index are generated locally in
+`src/build/readmes.ts`. Plugin descriptions come from a single GitHub API request;
+if it fails, the build warns and uses the catalog descriptions instead.
+
+## Failures
+
+A failed README fetch fails the build and therefore the deployment. There is no
+silent fallback to stale content. The deployment sets `GITHUB_TOKEN` to avoid API
+rate limits.
+
+## Offline builds
+
+Set `PORTFOLIO_README_DIR` to a directory containing one `<repository>.md` file per
+external catalog entry:
 
 ```powershell
-dotnet workload install wasm-tools
-dotnet run --project .\src\Srv.Portfolio.ContentGenerator -c Release -- --readmes .\src\Srv.Portfolio\wwwroot
-node .\src\tools\highlight-readme-snapshots.mjs .\src\Srv.Portfolio\wwwroot
-dotnet publish .\src\Srv.Portfolio -c Release
+$env:PORTFOLIO_README_DIR = "C:\path\to\fixtures"
+npm run build
 ```
 
-The deployment workflow runs snapshot generation and then highlighting before
-publishing. The highlighting step loads the same `wwwroot/lib/highlight/highlight.min.js`
-build that the browser uses and calls its `highlightElement` on each sanitized
-`language-*` block, so the resulting markup matches what the browser would produce.
-Blocks in languages that build lacks get `data-highlight-skip`. Blocks the step cannot
-decode safely are left unchanged, and the browser still highlights those. Rerunning
-the step changes nothing. GitHub fetch,
-rendering, and filesystem failures stop generation and therefore deployment.
-Publishing independently verifies every catalog snapshot exists and matches its
-repository/path. Missing or invalid browser snapshots use the existing load-error
-UI and retry action; there is no silent live-fetch fallback.
-
-Normal builds and tests do not fetch GitHub content. Run generation before local
-browser previews too. Generated files under `src/Srv.Portfolio/wwwroot/readmes/`
-are ignored; do not edit or commit them. Regenerate after changing catalog paths or
-renderer rules. Successful generation overwrites each catalog entry's snapshot.
-
-For repeatable offline input, append `--source-directory C:\path\to\fixtures`.
-Supply one `<repository>.md` file per external catalog entry. Files are still passed
-through the real renderer and sanitizer, not copied directly into trusted HTML.
-
-## Local content and lazy rendering
-
-The fixed root README is rendered during normal builds. Its generated HTML lives
-under `obj/`; its Markdown stays available for raw view and copying.
-
-The generated WezTerm plugin collection still uses live repository descriptions
-with its existing six-hour persisted description cache. That collection uses the
-lazy renderer. Markdig, HtmlSanitizer, AngleSharp, its CSS dependency, and CodePages
-remain deferred. Changed local Markdown replaces its cached rendering.
-
-If that renderer download fails, the app displays raw Markdown and a **Reload page**
-recovery button. A full reload is necessary because WebAssembly can retain failed
-asset downloads within the current page.
-
-## Boundaries and trade-offs
-
-`Srv.Portfolio.Content` owns catalog data, snapshot contracts, and root Markdown.
-`Srv.Portfolio.Rendering` owns Markdown transformations and sanitization.
-`Srv.Portfolio.ContentGenerator` runs that renderer at build/deployment time.
-`ReadmeService` loads snapshots and keeps the existing per-session caches.
-
-Work moves from each visitor's browser to the deployment machine; the renderer
-algorithm itself is not faster. JSON includes both source and HTML, so each file is
-larger than raw Markdown alone. Files load on demand, not during application boot.
-The renderer remains available for the dynamic collection rather than being
-unsafely removed. Pre-highlighted code markup makes snapshots larger, but this growth
-is smaller than the highlight.js download it replaces. The browser still loads
-highlight.js for the dynamic collection and for any block it must highlight itself.
-See [performance checks](performance.md) for measurements.
+Fixture files still go through the real renderer and sanitizer. Without
+`GITHUB_TOKEN`, offline builds also skip the description request and use the catalog
+descriptions.

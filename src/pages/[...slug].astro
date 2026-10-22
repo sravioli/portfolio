@@ -1,0 +1,19 @@
+---
+import type { GetStaticPaths } from "astro";
+import Shell from "../layouts/Shell.astro";
+import { loadDocument } from "../build/documents.ts";
+import { documentModel } from "../build/model.ts";
+import { documentEntries } from "../build/readmes.ts";
+import { documentSlug, pageTitle } from "../lib/routes.ts";
+
+export const getStaticPaths = (() =>
+  documentEntries().map((entry) => ({
+    params: { slug: documentSlug(entry) },
+    props: { entry },
+  }))) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const document = await loadDocument(entry);
+---
+
+<Shell title={pageTitle(entry)} model={documentModel(document)} />

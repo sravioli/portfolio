@@ -12,8 +12,9 @@ Describe what this PR changes and why.
 
 ## Validation
 
-- [ ] `dotnet build .\Srv.Portfolio.slnx`
-- [ ] `dotnet test .\tests\Srv.Portfolio.Tests\Srv.Portfolio.Tests.csproj`
+- [ ] `npm run check`
+- [ ] `npm test`
+- [ ] `npm run build`
 
 ## Checklist
 

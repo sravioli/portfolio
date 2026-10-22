@@ -45,8 +45,8 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: OS, browser, .NET SDK version, and any relevant context.
-      placeholder: Windows 11, Chrome 129, .NET SDK 10.0.x, ...
+      description: OS, browser, Node.js version (for build issues), and any relevant context.
+      placeholder: Windows 11, Chrome 129, Node.js 24, ...
     validations:
       required: true
 

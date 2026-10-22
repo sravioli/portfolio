@@ -7,11 +7,12 @@ from fontTools import subset
 from fontTools.ttLib import TTFont
 
 
-APP = Path(__file__).resolve().parents[1] / "Srv.Portfolio"
-FONT_DIRECTORY = APP / "wwwroot" / "fonts"
-SOURCE_FONT = FONT_DIRECTORY / "SymbolsNerdFont-Regular.woff2"
-TARGET_FONT = FONT_DIRECTORY / "SymbolsNerdFont-Subset.woff2"
-SOURCE_EXTENSIONS = {".cs", ".razor", ".css", ".js", ".html"}
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE_DIRECTORY = ROOT / "src"
+SOURCE_FONT = SOURCE_DIRECTORY / "fonts" / "SymbolsNerdFont-Regular.woff2"
+TARGET_FONT = ROOT / "public" / "fonts" / "SymbolsNerdFont-Subset.woff2"
+SOURCE_EXTENSIONS = {".astro", ".ts", ".js", ".css", ".html"}
+EXCLUDED_DIRECTORIES = {"node_modules", "dist", ".astro"}
 
 
 def codepoints(text):
@@ -31,7 +32,7 @@ def codepoints(text):
 def referenced_codepoints(root):
     result = set()
     for path in sorted(root.rglob("*")):
-        if path.suffix in SOURCE_EXTENSIONS and not {"bin", "obj"} & set(path.parts):
+        if path.suffix in SOURCE_EXTENSIONS and not EXCLUDED_DIRECTORIES & set(path.parts):
             result.update(codepoints(path.read_text(encoding="utf-8-sig")))
     return result
 
@@ -57,7 +58,7 @@ def build_subset(source, target, references):
 
 
 if __name__ == "__main__":
-    count = build_subset(SOURCE_FONT, TARGET_FONT, referenced_codepoints(APP))
+    count = build_subset(SOURCE_FONT, TARGET_FONT, referenced_codepoints(SOURCE_DIRECTORY))
     print(
         f"Symbol font: {count} glyphs, "
         f"{SOURCE_FONT.stat().st_size:,} -> {TARGET_FONT.stat().st_size:,} bytes"

@@ -23,16 +23,19 @@ class SymbolFontTests(unittest.TestCase):
     def test_references_excludes_build_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "Home.razor").write_text("&#xf002;", encoding="utf-8")
-            (root / "obj").mkdir()
-            (root / "obj" / "Generated.cs").write_text(r"\u{f0770}", encoding="utf-8")
+            (root / "view.ts").write_text("&#xf002;", encoding="utf-8")
+            (root / "node_modules").mkdir()
+            (root / "node_modules" / "generated.js").write_text(r"\u{f0770}", encoding="utf-8")
             references = FONT_TOOL.referenced_codepoints(root)
             self.assertIn(0xF002, references)
             self.assertNotIn(0xF0770, references)
 
     def test_shipped_subset_contains_every_referenced_glyph(self):
         with TTFont(FONT_TOOL.SOURCE_FONT) as original, TTFont(FONT_TOOL.TARGET_FONT) as shipped:
-            required = FONT_TOOL.referenced_codepoints(FONT_TOOL.APP) & original.getBestCmap().keys()
+            required = (
+                FONT_TOOL.referenced_codepoints(FONT_TOOL.SOURCE_DIRECTORY)
+                & original.getBestCmap().keys()
+            )
             self.assertTrue(required)
             self.assertEqual(required, shipped.getBestCmap().keys())
             for point in required:
@@ -54,7 +57,7 @@ class SymbolFontTests(unittest.TestCase):
             FONT_TOOL.build_subset(
                 FONT_TOOL.SOURCE_FONT,
                 target,
-                FONT_TOOL.referenced_codepoints(FONT_TOOL.APP),
+                FONT_TOOL.referenced_codepoints(FONT_TOOL.SOURCE_DIRECTORY),
             )
             self.assertEqual(target.read_bytes(), FONT_TOOL.TARGET_FONT.read_bytes())
 

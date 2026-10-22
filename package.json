@@ -1,0 +1,28 @@
+{
+  "name": "portfolio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "tsc --noEmit",
+    "test": "node --test \"tests/**/*.test.mjs\" \"tests/**/*.test.ts\""
+  },
+  "dependencies": {
+    "astro": "^7.4.2",
+    "hast-util-to-html": "^9.0.5",
+    "hast-util-to-string": "^3.0.1",
+    "lowlight": "^3.3.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}
