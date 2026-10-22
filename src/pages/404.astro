@@ -1,6 +1,6 @@
 ---
 import Base from "../layouts/Base.astro";
-import { SITE_TITLE } from "../lib/routes.ts";
+import { BASE_PATH, SITE_TITLE } from "../lib/routes.ts";
 import { renderNotFound } from "../lib/view.ts";
 
 Astro.response.status = 404;
@@ -8,8 +8,8 @@ Astro.response.status = 404;
 
 <Base title={`Not found | ${SITE_TITLE}`}>
   <Fragment set:html={renderNotFound("./")} />
-  <script is:inline>
+  <script is:inline define:vars={{ basePath: BASE_PATH }}>
     for (const element of document.querySelectorAll(".requested-path"))
-      element.textContent = "./" + location.pathname.slice(1);
+      element.textContent = "./" + location.pathname.slice(basePath.replace(/\/$/, "").length + 1);
   </script>
 </Base>

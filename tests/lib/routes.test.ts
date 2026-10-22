@@ -9,9 +9,24 @@ import {
   fragmentUrl,
   pageTitle,
   rawUrl,
+  siteUrl,
 } from "../../src/lib/routes.ts";
 
 describe("routes", () => {
+  test("deployment base prefixes assets and resolves project pages without escaping the site", () => {
+    for (const base of ["/portfolio", "/portfolio/"]) {
+      assert.equal(siteUrl("", base), "/portfolio/");
+      assert.equal(siteUrl("/fonts/font.woff2", base), "/portfolio/fonts/font.woff2");
+      assert.equal(siteUrl("fragments/chrono.html", base), "/portfolio/fragments/chrono.html");
+      assert.equal(entryFromPath("/portfolio/", base), undefined);
+      assert.equal(entryFromPath("/portfolio", base), undefined);
+      assert.equal(entryFromPath("/portfolio/readme/", base), rootEntry);
+      assert.equal(entryFromPath("/portfolio/wezterm-plugins/nap.wz/", base), find("nap.wz"));
+      assert.equal(entryFromPath("/portfolio/missing", base), null);
+      assert.equal(entryFromPath("/portfolio-other/readme/", base), null);
+      assert.equal(entryFromPath("/readme/", base), null);
+    }
+  });
   test("root README lives under /readme/", () => {
     assert.equal(documentSlug(rootEntry), "readme");
     assert.equal(documentUrl(rootEntry), "/readme/");

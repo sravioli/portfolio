@@ -2,6 +2,7 @@
 import "../styles/app.css";
 import "../nvim/nvim.css";
 import { THEME_INIT_SCRIPT } from "../client/theme.ts";
+import { siteUrl } from "../lib/routes.ts";
 
 interface Props {
   title: string;
@@ -21,9 +22,9 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <title>{title}</title>
     <meta name="description" content="Simone Fidanza — .NET developer. Projects, dotfiles, and WezTerm plugins." />
     <link rel="canonical" href={canonical} />
-    <link rel="preload" href="/fonts/FiraCode-VF.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/SymbolsNerdFont-Subset.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="icon" type="image/png" sizes="64x64" href="/MF-DOOM.png" />
+    <link rel="preload" href={siteUrl("fonts/FiraCode-VF.woff2")} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={siteUrl("fonts/SymbolsNerdFont-Subset.woff2")} as="font" type="font/woff2" crossorigin />
+    <link rel="icon" type="image/png" sizes="64x64" href={siteUrl("MF-DOOM.png")} />
   </head>
   <body>
     <slot />

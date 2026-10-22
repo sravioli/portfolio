@@ -20,6 +20,7 @@ import {
 import { attr, escapeHtml } from "./html.ts";
 import { controlNotation, leaderNotation } from "../nvim/key-notation.ts";
 import type { NavigationState } from "./navigation-state.ts";
+import { siteUrl } from "./routes.ts";
 
 export interface HeadingBreadcrumb {
   readonly id: string;
@@ -605,7 +606,7 @@ export function renderNotFound(requestedPath: string): string {
     `<span class="prompt-arrow" aria-hidden="true">→</span><span>cd <span class="requested-path">${path}</span></span></p>` +
     `<p class="not-found-output">bash: cd: <span class="requested-path">${path}</span>: No such file or directory</p>${prompt}` +
     `<p class="not-found-return"><span class="not-found-exit" aria-label="Page not found: HTTP 404">(404)</span>` +
-    `<span class="prompt-arrow" aria-hidden="true">→</span><a href="/" aria-label="nvim . — open the portfolio">nvim .</a></p>` +
+    `<span class="prompt-arrow" aria-hidden="true">→</span><a href="${text(siteUrl(""))}" aria-label="nvim . — open the portfolio">nvim .</a></p>` +
     `</section></main>`
   );
 }

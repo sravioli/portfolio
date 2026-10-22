@@ -4,7 +4,7 @@ import { handleCommand } from "../nvim/commands.ts";
 import { copiedLineCount } from "../lib/format.ts";
 import { KeymapHandler, type KeyAction } from "../nvim/keymap.ts";
 import { NavigationState } from "../lib/navigation-state.ts";
-import { documentKey, documentUrl, entryFromPath, fragmentUrl, pageTitle, rawUrl } from "../lib/routes.ts";
+import { documentKey, documentUrl, entryFromPath, fragmentUrl, pageTitle, rawUrl, siteUrl } from "../lib/routes.ts";
 import * as view from "../lib/view.ts";
 import { Region } from "./dom.ts";
 import { openFinder, type Finder } from "./finder.ts";
@@ -183,7 +183,7 @@ export function start(): void {
     if (applyingHistory) return;
     const target = state.isReading ? state.currentDocument : undefined;
     if (target === null || entryFromPath(location.pathname) === target) return;
-    const url = target === undefined ? "/" : documentUrl(target);
+    const url = target === undefined ? siteUrl("") : documentUrl(target);
     if (home.consumeDrawerEntry()) history.replaceState(null, "", url);
     else history.pushState(null, "", url);
     document.title = pageTitle(target);

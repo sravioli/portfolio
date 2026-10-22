@@ -2,7 +2,8 @@
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
-  site: "https://sravio.li",
+  site: process.env.PAGES_SITE_URL || "https://sravioli.github.io",
+  base: process.env.PAGES_BASE_PATH || "/",
   output: "static",
   trailingSlash: "ignore",
   compressHTML: true,

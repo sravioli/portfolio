@@ -4,6 +4,12 @@ External READMEs are build-time snapshots, not live browser fetches. `npm run bu
 fetches each catalog README from `raw.githubusercontent.com`, renders it once, and
 writes three static files per document:
 
+Deployment URLs use Astro's configured base path. GitHub Pages builds set
+`PAGES_BASE_PATH` and `PAGES_SITE_URL` from `actions/configure-pages`, so assets,
+document navigation, fragments and raw sources work under `/portfolio/` as well
+as at a domain root. For a local project-path build, set
+`PAGES_BASE_PATH=/portfolio/` before running `npm run build`.
+
 - `/<slug>/index.html`: the full page, with the article already in the markup.
 - `/fragments/<key>.html`: the rendered article body only.
 - `/raw/<key>.md`: the original Markdown, for the raw view and copying.
