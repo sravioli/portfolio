@@ -14,10 +14,17 @@ as at a domain root. For a local project-path build, set
 - `/fragments/<key>.html`: the rendered article body only.
 - `/raw/<key>.md`: the original Markdown, for the raw view and copying.
 
+Fragment and raw endpoints share `documentAssetPaths` in `src/build/documents.ts`,
+so both enumerate the same document keys and entries.
+
 Opening a document from the explorer or finder fetches only its fragment; the raw
 Markdown loads on demand or on idle after a deep link. Both are cached for the rest
 of the session. Content updates on the next deployment; reloading the page does not
 fetch a newer README from GitHub.
+
+`src/client/text-cache.ts` shares successful text-response caching for document
+fragments, raw sources, and help fragments. Each keeps its own cache, failed
+requests remain retryable, and concurrent misses remain independent.
 
 ## Rendering
 

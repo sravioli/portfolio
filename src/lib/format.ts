@@ -24,6 +24,8 @@ export function formatFileSize(bytes: number): string {
 
 export const byteLength = (text: string): number => new TextEncoder().encode(text).length;
 
+export const stripBom = (text: string): string => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+
 export function countLines(source: string): number {
   let lines = 1;
   for (let index = source.indexOf("\n"); index !== -1; index = source.indexOf("\n", index + 1))

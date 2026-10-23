@@ -1,4 +1,5 @@
 import { escapeHtml } from "./html.ts";
+import { byteLength, splitRawLines, stripBom } from "./format.ts";
 import { HELP_INDEX_PAGE, helpAnchor, helpTagUrl } from "./routes.ts";
 
 /**
@@ -84,7 +85,7 @@ function exampleIntro(text: string): string | null {
 }
 
 export function parseHelp(name: string, source: string): HelpDocument {
-  const lines = source.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const lines = splitRawLines(stripBom(source));
   const title = TITLE_LINE.exec(lines[0] ?? "");
   if (title === null) throw new Error(`${name}.txt: the first line must be "*${name}.txt*  Title"`);
   if (title[1] !== `${name}.txt`) throw new Error(`${name}.txt: the first line names ${title[1]}`);
@@ -214,7 +215,7 @@ export function parseHelp(name: string, source: string): HelpDocument {
       if (match[2] !== undefined) tags.push(match[2]);
     }
   const lineCount = source.endsWith("\n") ? lines.length - 1 : lines.length;
-  const bytes = new TextEncoder().encode(source).length;
+  const bytes = byteLength(source);
   return { name, fileTag: title[1], title: title[2].trim(), blocks, tags, links, lines: lineCount, bytes };
 }
 

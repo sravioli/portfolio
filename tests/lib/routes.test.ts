@@ -2,6 +2,7 @@ import test, { describe } from "node:test";
 import assert from "node:assert/strict";
 import { allEntries, find, rootEntry } from "../../src/lib/catalog.ts";
 import {
+  decodeUrlComponent,
   documentKey,
   documentSlug,
   documentUrl,
@@ -21,6 +22,15 @@ import {
 } from "../../src/lib/routes.ts";
 
 describe("routes", () => {
+  test("URL components decode once and malformed encodings remain unchanged", () => {
+    assert.equal(decodeUrlComponent("%E2%9C%93%20%252F+"), "\u2713 %2F+");
+    for (const value of ["%", "%2", "%GG", "%E0%A4%A", "%ED%A0%80"])
+      assert.equal(decodeUrlComponent(value), value);
+    assert.equal(helpPageFromPath("/help/%E0%A4%A/"), "%E0%A4%A");
+    assert.equal(helpTagFromHash("#help-%E0%A4%A"), "%E0%A4%A");
+    assert.equal(entryFromPath("/%63hrono/"), find("chrono"));
+  });
+
   test("help pages have pretty URLs, tag fragments, and fragments to fetch", () => {
     assert.equal(helpPageUrl(HELP_INDEX_PAGE), "/help/");
     assert.equal(helpPageUrl("clipboard"), "/help/clipboard/");

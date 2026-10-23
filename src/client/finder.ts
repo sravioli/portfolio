@@ -1,6 +1,7 @@
 import type { PortfolioEntry } from "../lib/catalog.ts";
 import { search, totalCount, type FileSearchResult } from "../lib/file-search.ts";
-import { NARROW_QUERY, renderFinder, type FinderModel } from "../lib/view.ts";
+import { NARROW_QUERY } from "../lib/layout.ts";
+import { renderFinder, type FinderModel } from "../lib/view.ts";
 import { Region } from "./dom.ts";
 
 const PREVIEW_DEBOUNCE_MS = 150;

@@ -1,3 +1,5 @@
+import { writeStorage } from "./storage.ts";
+
 export const THEME_STORAGE_KEY = "portfolio.theme";
 
 const BACKGROUNDS = { wave: "#1f1f28", lotus: "#f2ecbc" } as const;
@@ -21,9 +23,5 @@ export function toggleTheme(): void {
   const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (meta !== null) meta.content = BACKGROUNDS[theme];
   syncThemeToggle();
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-  } catch {
-    // Storage can be unavailable (private mode); the choice still applies to this visit.
-  }
+  writeStorage(THEME_STORAGE_KEY, theme);
 }

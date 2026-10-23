@@ -1,13 +1,7 @@
 import type { APIRoute, GetStaticPaths } from "astro";
-import { loadDocument } from "../../build/documents.ts";
-import { documentEntries } from "../../build/readmes.ts";
-import { documentKey } from "../../lib/routes.ts";
+import { documentAssetPaths, loadDocument } from "../../build/documents.ts";
 
-export const getStaticPaths = (() =>
-  documentEntries().map((entry) => ({
-    params: { key: documentKey(entry) },
-    props: { entry },
-  }))) satisfies GetStaticPaths;
+export const getStaticPaths = documentAssetPaths satisfies GetStaticPaths;
 
 /** README source, used by the raw view, copying, and the file finder preview. */
 export const GET: APIRoute = async ({ props }) =>

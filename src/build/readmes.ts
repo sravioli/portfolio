@@ -8,6 +8,7 @@ import {
   type PortfolioEntry,
 } from "../lib/catalog.ts";
 import { rawFileUrl, repositoryUrl, REPOSITORIES_API_URL } from "../lib/github-urls.ts";
+import { stripBom } from "../lib/format.ts";
 
 export const ROOT_README_SOURCE = `# Hi, I'm Simone.
 
@@ -48,8 +49,6 @@ export const localDocumentPath = (file: string): string =>
   path.join(process.cwd(), "src", "documents", file);
 
 const REQUEST_TIMEOUT_MS = 30_000;
-
-const stripBom = (text: string): string => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
 
 async function fetchText(url: string, headers: Record<string, string> = {}): Promise<string> {
   const response = await fetch(url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });

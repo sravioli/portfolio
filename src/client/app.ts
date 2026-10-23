@@ -26,12 +26,15 @@ import * as view from "../lib/view.ts";
 import { Region } from "./dom.ts";
 import { openFinder, type Finder } from "./finder.ts";
 import { syncThemeToggle, toggleTheme } from "./theme.ts";
+import { readStorage, writeStorage } from "./storage.ts";
+import { fetchCachedText } from "./text-cache.ts";
 import * as home from "./home.js";
 
 type DocumentMetrics = Record<string, [bytes: number, lines: number]>;
 
 const { EXPLORER_STORAGE_KEY } = view;
 const OPEN_ERROR_DURATION_MS = 2000;
+const CLIPBOARD_ERROR = 'clipboard: Browser denied access. See ":h clipboard-errors".';
 
 const CURSOR_MOTIONS: Partial<Record<KeyAction, string>> = {
   ScrollUp: "up",
@@ -57,32 +60,7 @@ function required<T extends Element>(root: ParentNode, selector: string): T {
   return element;
 }
 
-async function fetchText(url: string): Promise<string> {
-  const response = await fetch(url);
-  if (!response.ok)
-    throw new Error(
-      `Response status code does not indicate success: ${response.status} (${response.statusText || "Error"}).`,
-    );
-  return response.text();
-}
-
 const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-
-function readStorage(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeStorage(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Storage can be unavailable (private mode); the choice still applies to this visit.
-  }
-}
 
 const whenIdle = (callback: () => void): void => {
   if ("requestIdleCallback" in window) requestIdleCallback(callback, { timeout: 2000 });
@@ -337,8 +315,7 @@ export function start(): void {
       helpLoading = true;
       render();
       try {
-        const html = await fetchText(helpFragmentUrl(page));
-        helpFragments.set(page, html);
+        const html = await fetchCachedText(helpFragments, page, helpFragmentUrl(page));
         if (!state.isHelpOpen || state.helpPage !== page) return false;
         helpHtml = html;
       } catch (error) {
@@ -510,23 +487,11 @@ export function start(): void {
   // ------------------------------------------------------------ documents
 
   async function getFragment(entry: PortfolioEntry): Promise<string> {
-    const key = documentKey(entry);
-    let html = fragments.get(key);
-    if (html === undefined) {
-      html = await fetchText(fragmentUrl(entry));
-      fragments.set(key, html);
-    }
-    return html;
+    return fetchCachedText(fragments, documentKey(entry), fragmentUrl(entry));
   }
 
   async function getSource(entry: PortfolioEntry): Promise<string> {
-    const key = documentKey(entry);
-    let source = sources.get(key);
-    if (source === undefined) {
-      source = await fetchText(rawUrl(entry));
-      sources.set(key, source);
-    }
-    return source;
+    return fetchCachedText(sources, documentKey(entry), rawUrl(entry));
   }
 
   // The raw source is only needed for the raw view and copying, so it is fetched once the page is idle.
@@ -660,7 +625,7 @@ export function start(): void {
     const source = await ensureSource();
     if (source === null) return;
     if (await home.copyText(source)) state.message = `${copiedLineCount(source)} lines yanked into "+`;
-    else state.showError('clipboard: Browser denied access. See ":h clipboard-errors".');
+    else state.showError(CLIPBOARD_ERROR);
     render();
   }
 
@@ -673,7 +638,7 @@ export function start(): void {
 
   // Vim reports a yank only when it spans more lines than 'report' (2).
   function onYank(lines: number, copied: boolean): void {
-    if (!copied) state.showError('clipboard: Browser denied access. See ":h clipboard-errors".');
+    if (!copied) state.showError(CLIPBOARD_ERROR);
     else if (lines > 2) state.message = `${lines} lines yanked into "+`;
     else return;
     render();
@@ -692,7 +657,7 @@ export function start(): void {
     if (entry === null) return;
     const url = new URL(documentUrl(entry), location.href).href;
     if (await home.copyText(url)) state.message = `Copied link: ${url}`;
-    else state.showError('clipboard: Browser denied access. See ":h clipboard-errors".');
+    else state.showError(CLIPBOARD_ERROR);
     render();
   }
 

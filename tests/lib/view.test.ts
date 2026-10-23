@@ -119,6 +119,30 @@ describe("view", () => {
     assert.doesNotMatch(statuslineClass(model), /visual-status/);
   });
 
+  test("README and help rulers preserve identical coordinates, escaping, and scroll thumbs", () => {
+    const state = new NavigationState();
+    state.navigateTo("chrono");
+    const base = {
+      ...welcomeModel(),
+      state,
+      positionLine: 7,
+      totalLines: 1234,
+      positionColumn: 103,
+    };
+    for (const [position, fraction] of [["All", "0"], ["Bot", "1"], ["37%", "0.37"], ["<x>&", "0"]]) {
+      const escaped = position === "<x>&" ? "&lt;x&gt;&amp;" : position;
+      const ruler =
+        '<span class="position-block"><span class="status-full">007/1234:103 </span>' +
+        `${escaped} <span class="scroll-thumb" aria-hidden="true" style="--scroll: ${fraction}"></span></span>`;
+      assert.ok(renderStatusline({ ...base, scrollPosition: position }).includes(ruler));
+      assert.ok(renderStatusline({
+        ...base,
+        helpCurrent: true,
+        helpStatus: { line: 7, total: 1234, column: 103, position, bytes: 0 },
+      }).includes(ruler));
+    }
+  });
+
   test("help content shows loading, errors with retry, then the file", () => {
     assert.match(renderHelpContent({ ...welcomeModel(), helpLoading: true }), /class="help-loading"/);
     const error = renderHelpContent({ ...welcomeModel(), helpError: "E149: <x>" });

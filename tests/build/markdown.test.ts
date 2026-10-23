@@ -239,6 +239,7 @@ describe("renderMarkdown", () => {
     ["", "docs/guide.md", "docs/guide.md"],
     ["nvim", "guide.md", "guide.md"],
     ["chrono", "../docs/guide%20one.md", "docs/guide%20one.md"],
+    ["chrono", "../docs/bad%E0%A4.md", "docs/bad%25E0%25A4.md"],
     ["chrono", "../../guide.md", "guide.md"],
     ["chrono", "/docs/./guide.md", "docs/guide.md"],
     ["nap.wz", "./images/demo.png", "images/demo.png"],

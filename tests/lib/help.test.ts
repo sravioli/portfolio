@@ -65,6 +65,16 @@ describe("parseHelp", () => {
     assert.equal(document.tags.length, 6);
   });
 
+  test("source metrics include the BOM and CRLF bytes but exclude the terminal empty line", () => {
+    const body = "*demo.txt*  Caf\u00e9";
+    const document = parseHelp("demo", `\uFEFF${body}\r\n\r\n`);
+    assert.equal(document.lines, 2);
+    assert.equal(document.bytes, 24);
+    assert.equal(document.title, "Caf\u00e9");
+    assert.equal(parseHelp("demo", body).lines, 1);
+    assert.equal(parseHelp("demo", body).bytes, 17);
+  });
+
   describe("rejects a bad first line", () => {
     for (const first of ["Demo help", "*other.txt*  Demo help"]) {
       test(first, () => {

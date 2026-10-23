@@ -12,6 +12,8 @@ import {
   getActiveHeadings,
 } from "./js/readme-headings.js";
 import { openInNewTab } from "./js/browser-links.js";
+import { readStorage, writeStorage } from "./storage.ts";
+import { NARROW_QUERY } from "../lib/layout.ts";
 
 export { getActiveHeadings };
 
@@ -26,8 +28,6 @@ const ON_HELP_POSITION = "OnHelpPosition";
 const ON_VISUAL_MODE = "OnVisualMode";
 const ON_YANK = "OnYank";
 const ON_FLASH = "OnFlashPrompt";
-// Keep in sync with the narrow-layout media query in app.css.
-const NARROW_QUERY = "(max-width: 700px)";
 
 const LEADER_MAPS = whichKey.leaderMaps();
 const CTRL_MAPS = ["d", "u", "h", "l", "p", "c", "o", "i"];
@@ -991,11 +991,7 @@ const CODE_WRAP_KEY = "portfolio.codeWrap";
 let codeWrap = false;
 
 function readCodeWrap() {
-  try {
-    return localStorage.getItem(CODE_WRAP_KEY) === "on";
-  } catch {
-    return false;
-  }
+  return readStorage(CODE_WRAP_KEY) === "on";
 }
 
 function applyCodeWrap(wrap) {
@@ -1035,11 +1031,7 @@ async function copyCodeBlock(button) {
 function toggleCodeWrap() {
   const wrap = !codeWrap;
   applyCodeWrap(wrap);
-  try {
-    localStorage.setItem(CODE_WRAP_KEY, wrap ? "on" : "off");
-  } catch {
-    // Storage can be unavailable (private mode); the choice still applies to this visit.
-  }
+  writeStorage(CODE_WRAP_KEY, wrap ? "on" : "off");
   cursor.refresh();
   schedulePosition();
   focusPreview();

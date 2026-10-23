@@ -15,6 +15,13 @@ export interface PortfolioDocument {
 
 const cache = new Map<string, Promise<PortfolioDocument>>();
 
+/** Static parameters shared by the rendered-fragment and raw-source endpoints. */
+export const documentAssetPaths = () =>
+  documentEntries().map((entry) => ({
+    params: { key: documentKey(entry) },
+    props: { entry },
+  }));
+
 /** Loads and renders a README once per build, shared by pages, fragments, and raw endpoints. */
 export function loadDocument(entry: PortfolioEntry): Promise<PortfolioDocument> {
   const key = documentKey(entry);

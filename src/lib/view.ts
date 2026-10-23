@@ -21,6 +21,7 @@ import {
   type SplitPath,
 } from "./format.ts";
 import { attr, escapeHtml } from "./html.ts";
+import { NARROW_QUERY } from "./layout.ts";
 import { leaderNotation } from "../nvim/key-notation.ts";
 import type { NavigationState } from "./navigation-state.ts";
 import { documentUrl, siteUrl } from "./routes.ts";
@@ -309,6 +310,14 @@ export const renderOpenError = (message: string | null): string =>
 const thumb = (fraction: number): string =>
   `<span class="scroll-thumb" aria-hidden="true"${attr("style", scrollThumbStyle(fraction))}></span>`;
 
+function renderRuler(line: number, total: number, column: number, position: string): string {
+  const coordinates = `${pad(line, 3)}/${pad(total, 3)}:${pad(column, 2)} `;
+  return (
+    `<span class="position-block"><span class="status-full">${coordinates}</span>${text(position)} ` +
+    `${thumb(scrollFraction(position))}</span>`
+  );
+}
+
 const modeBlock = (full: string, short: string): string =>
   `<span class="mode-block"><span class="status-full">${full}</span><span class="status-short" aria-hidden="true">${short}</span></span>`;
 
@@ -381,7 +390,6 @@ export function renderStatusline(model: ViewModel): string {
     );
   if (state.isReading) {
     const size = documentLoaded(model) ? formatFileSize(model.documentBytes) : "0b";
-    const position = `${pad(model.positionLine, 3)}/${pad(model.totalLines, 3)}:${pad(model.positionColumn, 2)} `;
     return (
       `<div class="status-left">${windowMode(model, "NORMAL", "N")}` +
       `<span class="power-arrow blue-arrow" aria-hidden="true"></span>${cwdSegment(model)}` +
@@ -392,8 +400,7 @@ export function renderStatusline(model: ViewModel): string {
       `<div class="status-right"><span class="byte-size">${size} <span aria-hidden="true">${ICON_SIZE}</span></span>` +
       `<span class="encoding">utf-8</span>${FILE_FORMAT}` +
       `<span class="filetype">${state.isRawView ? "TEXT" : "MARKDOWN"}</span>` +
-      `<span class="position-block"><span class="status-full">${position}</span>${text(model.scrollPosition)} ` +
-      `${thumb(scrollFraction(model.scrollPosition))}</span></div>`
+      `${renderRuler(model.positionLine, model.totalLines, model.positionColumn, model.scrollPosition)}</div>`
     );
   }
   return (
@@ -409,7 +416,6 @@ export function renderStatusline(model: ViewModel): string {
 function renderHelpStatusline(model: ViewModel): string {
   const { state } = model;
   const status = model.helpStatus ?? { line: 1, column: 1, total: 1, position: "Top", bytes: 0 };
-  const position = `${pad(status.line, 3)}/${pad(status.total, 3)}:${pad(status.column, 2)} `;
   return (
     `<div class="status-left">${windowMode(model, "HELP", "H")}` +
     `<span class="power-arrow raised-arrow" aria-hidden="true"></span>` +
@@ -417,8 +423,7 @@ function renderHelpStatusline(model: ViewModel): string {
     `<span class="power-arrow file-arrow" aria-hidden="true"></span></div>` +
     `<div class="status-right"><span class="byte-size">${formatFileSize(status.bytes)} <span aria-hidden="true">${ICON_SIZE}</span></span>` +
     `<span class="filetype">HELP</span>` +
-    `<span class="position-block"><span class="status-full">${position}</span>${text(status.position)} ` +
-    `${thumb(scrollFraction(status.position))}</span></div>`
+    `${renderRuler(status.line, status.total, status.column, status.position)}</div>`
   );
 }
 
@@ -549,8 +554,7 @@ export function renderOutline(model: ViewModel): string {
 // ---------------------------------------------------------------- shell
 
 export const EXPLORER_STORAGE_KEY = "portfolio.explorer";
-// Keep in sync with the narrow-layout media query in app.css.
-export const NARROW_QUERY = "(max-width: 700px)";
+export { NARROW_QUERY };
 
 /** Runs right after the shell markup, so the explorer starts in its final state without a layout shift. */
 export const EXPLORER_SCRIPT =

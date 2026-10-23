@@ -12,7 +12,7 @@ import { highlightLua } from "./lua-highlight.ts";
 import { SKIP, visit } from "unist-util-visit";
 import { find, isRoot, type PortfolioEntry } from "../lib/catalog.ts";
 import { fileUrl, HOST, OWNER, BRANCH, rawFileUrl } from "../lib/github-urls.ts";
-import { documentUrl, entryFromPath, siteUrl } from "../lib/routes.ts";
+import { decodeUrlComponent, documentUrl, entryFromPath, siteUrl } from "../lib/routes.ts";
 
 const documentFileLabel = (entry: PortfolioEntry): string =>
   isRoot(entry) ? "README" : entry.name;
@@ -73,14 +73,6 @@ function parseAbsoluteUrl(value: string): URL | null {
   }
 }
 
-function unescapeData(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
 // Matches .NET Uri.EscapeDataString: only RFC 3986 unreserved characters stay literal.
 const escapeData = (value: string): string =>
   encodeURIComponent(value).replace(
@@ -116,7 +108,7 @@ function normalizeRepositoryPath(path: string): string {
       segments.pop();
       continue;
     }
-    segments.push(escapeData(unescapeData(segment)));
+    segments.push(escapeData(decodeUrlComponent(segment)));
   }
   return segments.join("/");
 }
@@ -321,7 +313,7 @@ function addHeadingIdsAndResolveAnchors(tree: HastRoot): void {
     if (anchor.tagName !== "a") return;
     const href = stringProperty(anchor, "href");
     if (href === null || !href.startsWith("#")) return;
-    const normalized = slugify(unescapeData(href.slice(1)));
+    const normalized = slugify(decodeUrlComponent(href.slice(1)));
     const id = slugs.get(normalized);
     if (id !== undefined) anchor.properties.href = `#${id}`;
     else {

@@ -3,6 +3,16 @@ import { find, getPath, isRoot, type PortfolioEntry } from "./catalog.ts";
 export const ROOT_DOCUMENT_SEGMENT = "readme";
 
 export const BASE_PATH = import.meta.env?.BASE_URL ?? "/";
+
+/** Decodes a URL component, preserving malformed encodings as written. */
+export function decodeUrlComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export const siteUrl = (path: string, basePath = BASE_PATH): string =>
   `${basePath.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 
@@ -72,21 +82,12 @@ export function helpPageFromPath(pathname: string, basePath = BASE_PATH): string
   const match = /^\/help(?:\/([^/]+))?\/?$/i.exec(pathname);
   if (match === null) return null;
   if (match[1] === undefined) return HELP_INDEX_PAGE;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return match[1];
-  }
+  return decodeUrlComponent(match[1]);
 }
 
 /** Help tag named by a URL fragment such as `#help-clipboard`; `null` when it names none. */
 export function helpTagFromHash(hash: string): string | null {
-  let fragment = hash.replace(/^#/, "");
-  try {
-    fragment = decodeURIComponent(fragment);
-  } catch {
-    // Keep the fragment as written.
-  }
+  const fragment = decodeUrlComponent(hash.replace(/^#/, ""));
   const prefix = helpAnchor("");
   return fragment.startsWith(prefix) && fragment.length > prefix.length ? fragment.slice(prefix.length) : null;
 }
@@ -102,13 +103,7 @@ export function entryFromPath(pathname: string, basePath = BASE_PATH): Portfolio
   const segments = pathname
     .split("/")
     .filter((segment) => segment.length > 0)
-    .map((segment) => {
-      try {
-        return decodeURIComponent(segment);
-      } catch {
-        return segment;
-      }
-    });
+    .map(decodeUrlComponent);
   if (segments.length === 0) return undefined;
   if (segments.length === 1 && segments[0].toLowerCase() === ROOT_DOCUMENT_SEGMENT)
     return find("");

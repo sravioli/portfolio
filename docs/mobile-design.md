@@ -14,6 +14,9 @@ Layout and input style switch independently:
 - **Pointer decides the controls.** `pointer: coarse` enables touch controls
   (floating action button, bottom sheets, touch-first hints) regardless of width.
 
+JavaScript shares the narrow-layout query from `src/lib/layout.ts`; the matching
+media queries remain in `src/styles/app.css`.
+
 | Device                   | Layout      | Controls        |
 | ------------------------ | ----------- | --------------- |
 | Phone, portrait          | Single pane | Touch           |
@@ -28,7 +31,7 @@ The tree becomes toggleable on every device.
 
 ### Desktop
 
-- Open by default; the user's choice is persisted via `BrowserStorage`.
+- Open by default; the user's choice is persisted via `src/client/storage.ts`.
 - `<leader>e` opens and focuses the tree; pressed again while the tree is
   focused, it closes it. `<C-h>` focuses the tree, opening it first when hidden.
   `:NvimTreeToggle`, `:NvimTreeOpen`, and `:NvimTreeClose` are also available.
