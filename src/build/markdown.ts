@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
+import { highlightLua } from "./lua-highlight.ts";
 import { SKIP, visit } from "unist-util-visit";
 import { find, isRoot, type PortfolioEntry } from "../lib/catalog.ts";
 import { fileUrl, HOST, OWNER, BRANCH, rawFileUrl } from "../lib/github-urls.ts";
@@ -378,12 +379,15 @@ function highlightCode(tree: HastRoot): void {
     const classes = classList(code);
     const language = classes.find((name) => name.startsWith("language-"))?.slice("language-".length);
     if (!language) return;
-    if (!lowlight.registered(language)) {
+    if (language !== "lua" && !lowlight.registered(language)) {
       code.properties.dataHighlightSkip = "";
       return SKIP;
     }
-    const highlighted = lowlight.highlight(language, toString(code));
-    code.children = highlighted.children as ElementContent[];
+    const source = toString(code);
+    code.children =
+      language === "lua"
+        ? highlightLua(source)
+        : (lowlight.highlight(language, source).children as ElementContent[]);
     code.properties.className = [...classes, "hljs"];
     code.properties.dataHighlighted = "yes";
     return SKIP;

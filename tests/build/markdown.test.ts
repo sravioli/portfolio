@@ -150,6 +150,13 @@ describe("renderMarkdown", () => {
     assert.match(html, /class="hljs-keyword"/);
   });
 
+  test("highlights Lua function calls", () => {
+    const html = renderMarkdown('```lua\nlocal t = warden.tuple {\n  warden.integer():not_empty(),\n}\n```', rootEntry);
+    for (const name of ["tuple", "integer", "not_empty"]) {
+      assert.match(html, new RegExp(`<span class="hljs-title function_">${name}</span>`));
+    }
+  });
+
   test("does not retain heading state between documents", () => {
     renderMarkdown("## Same\n\n## Same", rootEntry);
     const html = renderMarkdown("## Same\n\n[Link](#same)", rootEntry);
