@@ -1,0 +1,62 @@
+*flash.txt*  Jumping anywhere on screen, like flash.nvim
+
+Jump to any place you can see by typing a few of its characters and then a
+label, like the flash.nvim plugin for Neovim. This works in a README and in
+the help window. See also |f| and |t|, which highlight where they can go.
+
+==============================================================================
+JUMPING                                                   *flash* *flash-jump*
+
+s            Start a jump. Type the text to jump to: each match is         *s*
+             highlighted, and a red label appears just after it. Type a
+             label to jump to its match.
+
+The command line shows a lightning-bolt icon followed by what you typed.
+The rest of the screen is dimmed while the jump is active. Matches nearest
+to the cursor get the labels first. Each key you type narrows the matches,
+and a label keeps its match while you type. A label is never a letter that
+could continue the text you typed, so typing more never jumps by accident.
+
+Case is ignored unless you type a capital letter, as with 'smartcase'.
+
+While a jump is active:
+
+{label}      Jump to the labelled match.                         *flash-label*
+<CR>         Jump to the first match after the cursor, shown in orange.
+<BS>         Delete the last character. With nothing typed, stop.
+<Esc>        Stop without moving.                                *flash-<Esc>*
+
+When no text matches what you typed, the jump stops.
+
+                                                               *flash-windows*
+When the help window is beside the README, matches in both windows get
+labels, and jumping to the other window moves there, like `CTRL-W w`.
+
+                                                                  *flash-yank*
+After `y`, the jump yanks from the cursor to the match, including the
+character it lands on: `ys` then the text and a label. Only matches in the
+current window get labels. In Visual mode, `s` extends the selection the
+same way. See |visual.txt|.
+
+==============================================================================
+CHARACTER MOTIONS                                                 *flash-char*
+
+After |f|, |F|, |t|, or |T|, the characters the search can reach next are
+highlighted in the direction it went, and the rest of the screen is dimmed.
+While they show:
+
+                                                              *flash-clever-f*
+f t          Press the same letter again to go to the next match, like |;|.
+F T          Press it in the other case to go back, like |,|. After `F` or
+             `T`, the lowercase letter goes on backward and the capital
+             goes forward.
+<Esc>        Stop the highlight. In the help window it does not close help.
+
+Any other key stops the highlight too. Unlike in Vim, the search goes past
+the end of the line, as in flash.nvim. Nothing is highlighted after `y`.
+
+==============================================================================
+DIFFERENCES FROM FLASH.NVIM                                *flash-differences*
+
+Treesitter selection (`S`), remote actions (`r`), and labels during a
+|/| search are not available.

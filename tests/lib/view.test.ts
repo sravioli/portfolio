@@ -10,11 +10,17 @@ import {
   renderDocumentActions,
   renderExplorerEntries,
   renderFinderResults,
+  renderHelpBar,
+  renderHelpContent,
   renderNotFound,
   renderOutline,
+  renderCommandLine,
+  FLASH_PROMPT,
   renderRawDocument,
   renderShell,
+  renderStatusline,
   renderTabline,
+  statuslineClass,
   renderWelcome,
   ERROR_UI,
   type FinderModel,
@@ -35,6 +41,95 @@ const finderModel = (selectedIndex: number): FinderModel => ({
 });
 
 describe("view", () => {
+  test("flash prompt renders as an icon followed by the escaped pattern", () => {
+    const state = new NavigationState();
+    state.message = `${FLASH_PROMPT}a<b`;
+    const line = renderCommandLine({ ...welcomeModel(), state });
+    assert.match(line, /<svg class="flash-prompt-icon" aria-hidden="true"[^>]*>.*<\/svg><span class="visually-hidden">Flash: <\/span>a&lt;b<\/output>/);
+    assert.doesNotMatch(line, new RegExp(FLASH_PROMPT));
+  });
+
+  test("help window renders closed by default and open beside the README", () => {
+    const closed = renderShell(welcomeModel());
+    assert.match(closed, /data-help="closed"/);
+    assert.match(closed, /<aside class="help-pane" aria-labelledby="help-file" hidden>/);
+
+    const state = new NavigationState();
+    state.openHelp(null);
+    const open = renderShell({ ...welcomeModel(), state, helpHtml: '<article class="help-content"></article>' });
+    assert.match(open, /data-help="open"/);
+    assert.match(open, /<aside class="help-pane" aria-labelledby="help-file">/);
+    assert.match(open, /<article class="help-content"><\/article>/);
+  });
+
+  test("help bar is a statusline with the file name and a close button only", () => {
+    const state = new NavigationState();
+    state.helpPage = "clipboard";
+    const bar = renderHelpBar({ ...welcomeModel(), state });
+    assert.match(bar, /clipboard\.txt <span class="help-flags">\[Help\]\[RO\]<\/span>/);
+    assert.match(bar, /class="help-close" href="\/" data-action="close-help"/);
+    assert.doesNotMatch(bar, /help-back|help-search|Topics/);
+  });
+
+  test("tabline actions act on help while it is the current window", () => {
+    const readme = renderTabline(welcomeModel());
+    assert.match(readme, /data-action="back"/);
+    assert.match(readme, /data-action="find"/);
+    assert.match(readme, /data-action="help"/);
+    const help = renderTabline({ ...welcomeModel(), helpCurrent: true });
+    assert.match(help, /data-action="help-back" aria-label="Close help" title="Close help \(q\)">/);
+    assert.match(help, /data-action="help-search" aria-label="Search help"/);
+    assert.match(help, /data-action="help-topics" aria-label="Help topics"/);
+    assert.doesNotMatch(help, /data-action="(back|find|help)"/);
+    const stacked = renderTabline({ ...welcomeModel(), helpCurrent: true, helpBack: true });
+    assert.match(stacked, /data-action="help-back" aria-label="Back" title="Back \(CTRL-T\)">/);
+  });
+
+  test("statusline shows the help file and its position while help is the current window", () => {
+    const state = new NavigationState();
+    state.openHelp(null);
+    state.helpPage = "clipboard";
+    const model: ViewModel = {
+      ...welcomeModel(),
+      state,
+      helpCurrent: true,
+      helpStatus: { line: 7, column: 3, total: 227, position: "Top", bytes: 7782 },
+    };
+    const line = renderStatusline(model);
+    assert.match(line, /<span class="status-full">HELP<\/span>/);
+    assert.match(line, /clipboard\.txt<\/span>/);
+    assert.match(line, /7\.6kb/);
+    assert.match(line, /007\/227:03 <\/span>Top/);
+    assert.doesNotMatch(line, /NVIMTREE|MARKDOWN/);
+    assert.match(statuslineClass(model), /reading-status help-status/);
+    const unfocused = renderStatusline({ ...model, helpCurrent: false });
+    assert.match(unfocused, /NVIMTREE/);
+  });
+
+  test("statusline shows VISUAL and V-LINE in purple while a window is in Visual mode", () => {
+    const state = new NavigationState();
+    state.openHelp(null);
+    const model: ViewModel = { ...welcomeModel(), state, helpCurrent: true, visualMode: "char" };
+    assert.match(renderStatusline(model), /<span class="status-full">VISUAL<\/span><span class="status-short" aria-hidden="true">V<\/span>/);
+    assert.match(statuslineClass(model), /visual-status/);
+    const line = renderStatusline({ ...model, visualMode: "line" });
+    assert.match(line, /<span class="status-full">V-LINE<\/span><span class="status-short" aria-hidden="true">V-L<\/span>/);
+    state.isCommandMode = true;
+    assert.match(renderStatusline(model), /COMMAND/);
+    assert.doesNotMatch(statuslineClass(model), /visual-status/);
+  });
+
+  test("help content shows loading, errors with retry, then the file", () => {
+    assert.match(renderHelpContent({ ...welcomeModel(), helpLoading: true }), /class="help-loading"/);
+    const error = renderHelpContent({ ...welcomeModel(), helpError: "E149: <x>" });
+    assert.match(error, /role="alert"><p>E149: &lt;x&gt;<\/p>/);
+    assert.match(error, /data-action="help-retry"/);
+    assert.equal(
+      renderHelpContent({ ...welcomeModel(), helpHtml: "<article></article>" }),
+      '<article></article><div class="nvim-cursor" aria-hidden="true"></div>',
+    );
+  });
+
   test("raw documents render one line span per source line", () => {
     assert.equal(
       renderRawDocument("# Title\n\nbody", "repo"),

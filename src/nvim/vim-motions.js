@@ -1,4 +1,5 @@
-// Parses Vim normal-mode motion keys (`:help motion.txt`) into commands for the README cursor.
+// Parses Vim normal-mode motion keys (`:help motion.txt`), the `y` operator, and Visual-mode keys into
+// commands for the README cursor.
 import {
   PREFIX_TIMEOUT_MS,
   isModifierKey as isCommonModifierKey,
@@ -83,6 +84,9 @@ const CHARACTER_ARGUMENT = {
   t: "tillForward",
   T: "tillBackward",
 };
+const FIND_KEYS = Object.fromEntries(
+  Object.entries(CHARACTER_ARGUMENT).map(([key, motion]) => [motion, key]),
+);
 const MARK_ARGUMENT = { m: "setMark", "'": "markLine", "`": "markExact" };
 
 const Z_PREFIXED = {
@@ -94,38 +98,95 @@ const Z_PREFIXED = {
   "-": "scrollLineBottom",
 };
 
+// Text objects (`:help text-objects`) after `i` or `a`, in Visual mode or after an operator.
+const TEXT_OBJECTS = new Set([
+  "w", "W", "s", "p", "(", ")", "b", "[", "]", "{", "}", "B", "<", ">", '"', "'", "`",
+]);
+
+// Motions an operator cannot take: they search, open, scroll, or set marks rather than move over text.
+const NOT_OPERATOR_MOTIONS = new Set([
+  "searchNext",
+  "searchPrevious",
+  "followLink",
+  "setMark",
+  ...Object.values(Z_PREFIXED),
+]);
+
 export function isModifierKey(key) {
   return key === "AltGraph" || isCommonModifierKey(key);
 }
 
-export function createMotionParser({ now = () => performance.now() } = {}) {
+/**
+ * `visual` tells whether the cursor is in Visual mode, where `y`, `o`, and text objects act on the selection.
+ * Results have a `status`: "motion", "operator" (`y{motion}`, `yy`, `Y`), "command" (Visual-mode keys and
+ * `gv`), "flash" (`s`, a flash.nvim jump, `:help flash`), "pending", "cancelled", or "none".
+ *
+ * After `f`, `F`, `t`, or `T`, the same key repeats the search like flash.nvim's char mode
+ * (`:help flash-char`): the lowercase key goes on in the search's direction, the uppercase key goes back.
+ */
+export function createMotionParser({
+  now = () => performance.now(),
+  visual = () => false,
+} = {}) {
   let count = "";
   let prefix = "";
   let prefixAt = 0;
+  let operator = "";
+  let operatorCount = "";
+  // The f, F, t, or T key whose search can be repeated by pressing it again, or "" when none is active.
+  let charMotion = "";
 
   function reset() {
     count = "";
     prefix = "";
     prefixAt = 0;
+    operator = "";
+    operatorCount = "";
+  }
+
+  function totalCount() {
+    return Math.max(1, (Number(operatorCount) || 1) * (Number(count) || 1));
   }
 
   function emit(motion, argument) {
+    if (operator && NOT_OPERATOR_MOTIONS.has(motion)) return cancel();
     const result = {
-      status: "motion",
+      status: operator ? "operator" : "motion",
       motion,
-      count: Math.max(1, Number(count) || 1),
-      hasCount: count !== "",
+      count: totalCount(),
+      hasCount: count !== "" || operatorCount !== "",
     };
+    if (operator) result.operator = "yank";
     if (argument !== undefined) result.argument = argument;
+    if (!operator && motion in FIND_KEYS) charMotion = FIND_KEYS[motion];
+    reset();
+    return result;
+  }
+
+  function command(name) {
+    const result = { status: "command", command: name, count: totalCount() };
     reset();
     return result;
   }
 
   function feed(key) {
     if (isModifierKey(key))
-      return { status: prefix || count ? "pending" : "none" };
+      return { status: prefix || count || operator ? "pending" : "none" };
+    const repeating = charMotion;
+    charMotion = "";
+    if (repeating && !prefix && !count && !operator) {
+      if (key === "Escape") return { status: "cancelled" };
+      if (key === ";" || key === ",") {
+        charMotion = repeating;
+        return emit(SINGLE[key]);
+      }
+      if (key.toLowerCase() === repeating.toLowerCase()) {
+        charMotion = repeating;
+        return emit(key === key.toLowerCase() ? "repeatFind" : "repeatFindReverse");
+      }
+    }
     if (key === "Escape") {
-      const wasPending = prefix !== "" || count !== "";
+      const wasPending = prefix !== "" || count !== "" || operator !== "";
       reset();
       return { status: wasPending ? "cancelled" : "none" };
     }
@@ -146,8 +207,12 @@ export function createMotionParser({ now = () => performance.now() } = {}) {
           (pending !== "m" && (key === "'" || key === "`"));
         return valid ? emit(MARK_ARGUMENT[pending], key) : cancel();
       }
-      if (pending === "g")
+      if (pending === "i" || pending === "a")
+        return TEXT_OBJECTS.has(key) ? emit("textObject", pending + key) : cancel();
+      if (pending === "g") {
+        if (key === "v" && !operator) return command("reselectVisual");
         return key in G_PREFIXED ? emit(G_PREFIXED[key]) : cancel();
+      }
       if (pending === "z")
         return key in Z_PREFIXED ? emit(Z_PREFIXED[key]) : cancel();
       return key in BRACKET_PREFIXED[pending]
@@ -156,6 +221,33 @@ export function createMotionParser({ now = () => performance.now() } = {}) {
     }
     if (/^[1-9]$/.test(key) || (key === "0" && count)) {
       count = (count + key).slice(0, 6);
+      return { status: "pending" };
+    }
+    const inVisual = visual();
+    if (key === "y") {
+      if (inVisual) return command("yank");
+      if (operator) return emit("line");
+      operator = "y";
+      operatorCount = count;
+      count = "";
+      return { status: "pending" };
+    }
+    if (key === "Y") {
+      if (inVisual) return command("yankLines");
+      if (operator) return cancel();
+      // Neovim maps `Y` to `y$`.
+      operator = "y";
+      return emit("lineEnd");
+    }
+    if (key === "v" || key === "V") {
+      if (operator) return cancel();
+      return command(key === "v" ? "visualChar" : "visualLine");
+    }
+    if ((key === "o" || key === "O") && inVisual && !operator)
+      return command("swapVisual");
+    if ((key === "i" || key === "a") && (operator || inVisual)) {
+      prefix = key;
+      prefixAt = now();
       return { status: "pending" };
     }
     if (
@@ -170,7 +262,15 @@ export function createMotionParser({ now = () => performance.now() } = {}) {
       prefixAt = now();
       return { status: "pending" };
     }
+    if (key === "s") {
+      // flash.nvim's jump (`:help flash-jump`); the caller reads the search pattern and labels.
+      const result = { status: "flash", count: totalCount() };
+      if (operator) result.operator = "yank";
+      reset();
+      return result;
+    }
     if (key in SINGLE) return emit(SINGLE[key]);
+    if (operator) return cancel();
     reset();
     return { status: "none" };
   }
@@ -180,14 +280,25 @@ export function createMotionParser({ now = () => performance.now() } = {}) {
     return { status: "cancelled" };
   }
 
+  // Character, mark, and text-object arguments take any key and never time out.
   function awaitsArgument() {
-    return prefix in CHARACTER_ARGUMENT || prefix in MARK_ARGUMENT;
+    return (
+      prefix in CHARACTER_ARGUMENT ||
+      prefix in MARK_ARGUMENT ||
+      prefix === "i" ||
+      prefix === "a"
+    );
   }
 
   return {
     feed,
-    reset,
+    reset() {
+      reset();
+      charMotion = "";
+    },
     awaitsArgument,
-    isPending: () => prefix !== "" || count !== "",
+    isPending: () => prefix !== "" || count !== "" || operator !== "",
+    /** Whether f, F, t, or T can be repeated by pressing it again (`:help flash-char`). */
+    charActive: () => charMotion !== "",
   };
 }

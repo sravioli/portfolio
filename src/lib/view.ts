@@ -21,7 +21,7 @@ import {
   type SplitPath,
 } from "./format.ts";
 import { attr, escapeHtml } from "./html.ts";
-import { controlNotation, leaderNotation } from "../nvim/key-notation.ts";
+import { leaderNotation } from "../nvim/key-notation.ts";
 import type { NavigationState } from "./navigation-state.ts";
 import { documentUrl, siteUrl } from "./routes.ts";
 import { fileUrl, repositoryUrl } from "./github-urls.ts";
@@ -52,6 +52,29 @@ export interface ViewModel {
   readonly scrollPosition: string;
   readonly headings: readonly HeadingBreadcrumb[];
   readonly openError: string | null;
+  /** Rendered help file shown in the help window, once loaded. */
+  readonly helpHtml?: string | null;
+  readonly helpLoading?: boolean;
+  readonly helpError?: string | null;
+  /** Whether the help tag stack has somewhere to go back to. */
+  readonly helpBack?: boolean;
+  /** Whether help is the current window, so the tabline actions act on it instead of the README. */
+  readonly helpCurrent?: boolean;
+  /** Help cursor position and file size for the statusline while help is the current window. */
+  readonly helpStatus?: HelpStatus | null;
+  /** Visual mode of the current window's cursor: characterwise or linewise. */
+  readonly visualMode?: VisualMode | null;
+}
+
+export type VisualMode = "char" | "line";
+
+export interface HelpStatus {
+  readonly line: number;
+  readonly column: number;
+  readonly total: number;
+  /** All, Top, Bot, or a percentage, like Vim's ruler. */
+  readonly position: string;
+  readonly bytes: number;
 }
 
 const ICON_EXPLORER = "&#xf0645;";
@@ -72,12 +95,26 @@ export const documentLoaded = (model: ViewModel): boolean =>
 
 // ---------------------------------------------------------------- tabline
 
-export function renderTabline({ state }: ViewModel): string {
+export function renderTabline(model: ViewModel): string {
+  const { state } = model;
   const title = state.isReading
     ? state.currentDocument && isRoot(state.currentDocument)
       ? "README"
       : (state.currentDocument?.name ?? "")
     : "Explorer";
+  // Like Vim, the actions apply to the current window: the README, or help while it is current.
+  const help = model.helpCurrent === true;
+  const back = !help
+    ? 'data-action="back" aria-label="Back" title="Back"'
+    : model.helpBack
+      ? 'data-action="help-back" aria-label="Back" title="Back (CTRL-T)"'
+      : 'data-action="help-back" aria-label="Close help" title="Close help (q)"';
+  const find = help
+    ? 'data-action="help-search" aria-label="Search help" title="Search this help file (/)"'
+    : 'data-action="find" aria-label="Find files" title="Find files (&lt;leader&gt;ff)"';
+  const topics = help
+    ? 'data-action="help-topics" aria-label="Help topics" title="List of help files"'
+    : 'data-action="help" aria-label="Help" title="Help (:help)"';
   return (
     `<button type="button" class="explorer-label" data-action="toggle-explorer" aria-controls="portfolio-explorer"` +
     `${attr("aria-expanded", state.isExplorerOpen ? "true" : "false")} title="Toggle the explorer (&lt;leader&gt;e)">` +
@@ -87,7 +124,7 @@ export function renderTabline({ state }: ViewModel): string {
     `<div class="active-tab"><span class="tab-icon" aria-hidden="true">${ICON_FILE}</span>` +
     `<span class="tab-title">${text(title)}</span>` +
     `<button type="button" class="tab-close" data-action="close-document" aria-label="Close document">×</button></div>` +
-    `<div class="tab-actions"><button type="button" data-action="back" aria-label="Back" title="Back">` +
+    `<div class="tab-actions"><button type="button" ${back}>` +
     `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 5-7 7 7 7M5 12h14"/></svg></button>` +
     `<button type="button" class="keys-toggle" data-action="toggle-keys" aria-label="Keyboard shortcuts"` +
     `${attr("aria-pressed", state.keyboardEnabled ? "true" : "false")} title="Keyboard shortcuts: ${state.keyboardEnabled ? "on" : "off"} (:set keys / :set nokeys)">` +
@@ -97,8 +134,8 @@ export function renderTabline({ state }: ViewModel): string {
     ` title="Toggle light / dark mode">` +
     `<svg class="theme-wave-label" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>` +
     `<svg class="theme-lotus-label" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/></svg></button>` +
-    `<button type="button" data-action="find" aria-label="Find files" title="Find files (&lt;leader&gt;ff)">${ICON_FIND}</button>` +
-    `<button type="button" data-action="help" aria-label="Help">?</button></div>`
+    `<button type="button" ${find}>${ICON_FIND}</button>` +
+    `<button type="button" ${topics}>?</button></div>`
   );
 }
 
@@ -275,6 +312,14 @@ const thumb = (fraction: number): string =>
 const modeBlock = (full: string, short: string): string =>
   `<span class="mode-block"><span class="status-full">${full}</span><span class="status-short" aria-hidden="true">${short}</span></span>`;
 
+/** The mode block of a window: COMMAND, VISUAL, V-LINE, or the window's own Normal-mode name. */
+function windowMode(model: ViewModel, normal: string, short: string): string {
+  if (model.state.isCommandMode) return modeBlock("COMMAND", "C");
+  if (model.visualMode === "char") return modeBlock("VISUAL", "V");
+  if (model.visualMode === "line") return modeBlock("V-LINE", "V-L");
+  return modeBlock(normal, short);
+}
+
 const pathParts = (path: SplitPath): string =>
   `<span class="cwd-head">${text(path.head)}</span><span class="cwd-tail">${text(path.tail)}</span>`;
 
@@ -295,9 +340,20 @@ const explorerScroll = ({ state }: ViewModel): number =>
 
 export function statuslineClass(model: ViewModel): string {
   const { state } = model;
-  const kind =
-    (state.isReading || state.isCommandMode) && !model.finderOpen ? "reading-status" : "explorer-status";
-  const mode = model.finderOpen ? "insert-status" : state.isCommandMode ? "command-status" : "";
+  const kind = model.finderOpen
+    ? "explorer-status"
+    : model.helpCurrent
+      ? "reading-status help-status"
+      : state.isReading || state.isCommandMode
+        ? "reading-status"
+        : "explorer-status";
+  const mode = model.finderOpen
+    ? "insert-status"
+    : state.isCommandMode
+      ? "command-status"
+      : model.visualMode && (state.isReading || model.helpCurrent)
+        ? "visual-status"
+        : "";
   return `statusline ${kind} ${mode}`;
 }
 
@@ -312,6 +368,7 @@ export function renderStatusline(model: ViewModel): string {
       `<div class="status-right"><span class="tree-count"><span aria-hidden="true">${ICON_EMPTY_FILE}</span> 0b</span>` +
       `<span class="position-block">001/001:01 All ${thumb(explorerScroll(model))}</span></div>`
     );
+  if (model.helpCurrent) return renderHelpStatusline(model);
   if (state.isCommandMode && !state.isReading)
     return (
       `<div class="status-left">${modeBlock("COMMAND", "C")}` +
@@ -326,7 +383,7 @@ export function renderStatusline(model: ViewModel): string {
     const size = documentLoaded(model) ? formatFileSize(model.documentBytes) : "0b";
     const position = `${pad(model.positionLine, 3)}/${pad(model.totalLines, 3)}:${pad(model.positionColumn, 2)} `;
     return (
-      `<div class="status-left">${state.isCommandMode ? modeBlock("COMMAND", "C") : modeBlock("NORMAL", "N")}` +
+      `<div class="status-left">${windowMode(model, "NORMAL", "N")}` +
       `<span class="power-arrow blue-arrow" aria-hidden="true"></span>${cwdSegment(model)}` +
       `<span class="power-arrow surface-arrow" aria-hidden="true"></span>` +
       `<span class="file-segment"><span aria-hidden="true">${ICON_FILE}</span> ${text(documentFileName(state.currentDocument ?? state.currentFolder))}</span>` +
@@ -348,14 +405,43 @@ export function renderStatusline(model: ViewModel): string {
   );
 }
 
+/** Vim's help statusline: mode, the help file name, then its size and the cursor position. */
+function renderHelpStatusline(model: ViewModel): string {
+  const { state } = model;
+  const status = model.helpStatus ?? { line: 1, column: 1, total: 1, position: "Top", bytes: 0 };
+  const position = `${pad(status.line, 3)}/${pad(status.total, 3)}:${pad(status.column, 2)} `;
+  return (
+    `<div class="status-left">${windowMode(model, "HELP", "H")}` +
+    `<span class="power-arrow raised-arrow" aria-hidden="true"></span>` +
+    `<span class="file-segment"><span aria-hidden="true">${ICON_FILE}</span> ${text(`${state.helpPage}.txt`)}</span>` +
+    `<span class="power-arrow file-arrow" aria-hidden="true"></span></div>` +
+    `<div class="status-right"><span class="byte-size">${formatFileSize(status.bytes)} <span aria-hidden="true">${ICON_SIZE}</span></span>` +
+    `<span class="filetype">HELP</span>` +
+    `<span class="position-block"><span class="status-full">${position}</span>${text(status.position)} ` +
+    `${thumb(scrollFraction(status.position))}</span></div>`
+  );
+}
+
 // ---------------------------------------------------------------- command line
 
 export const showCommandMessage = ({ state }: ViewModel): boolean =>
   !state.isCommandMode && !!state.message;
 
+/** Marks a command-line message as flash's jump prompt; it renders as a lightning-bolt icon. */
+export const FLASH_PROMPT = "\u26a1";
+const ICON_FLASH =
+  `<svg class="flash-prompt-icon" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">` +
+  `<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg><span class="visually-hidden">Flash: </span>`;
+
+function commandMessage(message: string): string {
+  return message.startsWith(FLASH_PROMPT)
+    ? ICON_FLASH + text(message.slice(FLASH_PROMPT.length))
+    : text(message);
+}
+
 export function renderCommandLine(model: ViewModel): string {
   const { state } = model;
-  const message = showCommandMessage(model) ? text(state.message!) : "";
+  const message = showCommandMessage(model) ? commandMessage(state.message!) : "";
   return (
     `<label for="command-input" class="visually-hidden">Command</label><div class="command-field">` +
     `<input id="command-input"${attr("value", state.commandText || null)}` +
@@ -367,134 +453,24 @@ export function renderCommandLine(model: ViewModel): string {
 
 // ---------------------------------------------------------------- help
 
-function leaderKeys(keys: string, state: NavigationState): string {
-  if (state.devNotation) return `<kbd>${text(leaderNotation(keys, true, state.leaderLabel))}</kbd>`;
-  const sequence = [...keys].map((key) => `<kbd>${text(key)}</kbd>`).join(" ");
-  return `<span class="key-seq"><kbd>${text(state.leaderLabel)}</kbd> then ${sequence}</span>`;
+/** Help window statusline: the file name, like Vim's help statusline, and a close button. */
+export function renderHelpBar(model: ViewModel): string {
+  const { state } = model;
+  return (
+    `<span class="help-file" id="help-file">${text(`${state.helpPage}.txt`)} <span class="help-flags">[Help][RO]</span></span>` +
+    `<a class="help-close"${attr("href", siteUrl(""))} data-action="close-help" title="Close help (q)" aria-label="Close help">×</a>`
+  );
 }
 
-const ctrl = (key: string, state: NavigationState): string =>
-  `<kbd>${text(controlNotation(key, state.devNotation))}</kbd>`;
-
-const kbd = (...keys: string[]): string => keys.map((key) => `<kbd>${key}</kbd>`).join("");
-
-const row = (term: string, description: string): string => `<dt>${term}</dt><dd>${description}</dd>`;
-
-const group = (title: string, rows: string, note = ""): string =>
-  `<section class="help-group"><h3>${title}</h3>${note}<dl>${rows}</dl></section>`;
-
-const COMMAND_ROWS =
-  row(kbd("/pattern"), "Search the open README") +
-  row(kbd("n", "N"), "Next or previous search match") +
-  row(kbd(":nohl"), "Clear search highlighting") +
-  row(kbd("↑", "↓"), "Browse command history") +
-  row(kbd(":e"), "Reload the README") +
-  row(kbd(":e &lt;path&gt;"), "Open a README by project path");
-
-/** Contents of the help dialog; the dialog element itself is static. */
-export function renderHelp({ state }: ViewModel): string {
-  const touch =
-    `<div class="help-touch">` +
-    group(
-      "Touch",
-      row(`<span class="help-icon" aria-hidden="true">${ICON_EXPLORER}</span> top left`, "Show or hide the files") +
-        row("Tap a file or folder", "Open the file, or expand the folder") +
-        row("Back", "Go up one level") +
-        row(`<span class="help-icon" aria-hidden="true">${ICON_FIND}</span> top right`, "Find a file by name") +
-        row("Tap a breadcrumb", "Jump to another folder or heading") +
-        row("Tap an image", "Full-screen preview") +
-        row(`<span class="help-icon" aria-hidden="true">&#xf05b6;</span> on code`, "Wrap long lines"),
-    ) +
-    group(
-      "Commands",
-      COMMAND_ROWS +
-        row(kbd(":q"), "Return to the listing") +
-        row(kbd(":NvimTreeToggle"), "Show or hide the files"),
-      '<p class="help-note">Type them in the command line at the bottom.</p>',
-    ) +
-    `</div>`;
-
-  const general = group(
-    "General",
-    (state.devNotation ? row(kbd("&lt;leader&gt;"), text(state.leaderLabel)) : "") +
-      row(kbd(":"), "Command line (always works)") +
-      row(kbd("?", ":h"), "Open this help") +
-      row(ctrl("h", state) + leaderKeys("e", state), "Focus the explorer") +
-      row(ctrl("l", state), "Focus the README") +
-      row(kbd("Tab"), "Browser focus navigation"),
-  );
-  const explorer = group(
-    "Explorer",
-    row(kbd("j", "k"), "Move the selection") +
-      row(kbd("l", "Enter"), "Open a file or toggle a folder") +
-      row(kbd("h"), "Collapse, or go to the parent") +
-      row(kbd("gg", "G"), "First or last entry"),
-  );
-  const find = group(
-    "Find",
-    row(leaderKeys("ff", state) + ctrl("p", state), "Fuzzy-find READMEs") +
-      row(ctrl("j", state) + ctrl("k", state), "Next or previous result") +
-      row(leaderKeys(";", state), "Pick a breadcrumb by letter") +
-      row(kbd("j", "k", "l", "h"), "In the pick menu: move, open, back"),
-  );
-  const readme = group(
-    "README",
-    row(kbd("h", "j", "k", "l"), `Move the cursor (prefix a count, e.g. ${kbd("5j")})`) +
-      row(kbd("gg", "G"), `Top or bottom (${kbd("12G")} goes to line 12)`) +
-      row(ctrl("d", state) + ctrl("u", state), "Half page down or up") +
-      row(kbd("]]", "[["), "Next or previous heading") +
-      row(kbd("p"), "Toggle rendered or raw") +
-      row(ctrl("c", state), "Copy the source (no selection)") +
-      row(kbd("-"), "Back to the explorer") +
-      row(leaderKeys("bx", state), "Close the tab"),
-  );
-  const links = group(
-    "Links &amp; jumps",
-    row(kbd("gx", "Enter"), "Follow the link or play the video") +
-      row(`Click / ${kbd("Enter")}`, "Full-screen image preview") +
-      row(ctrl("o", state) + ctrl("i", state), "Jump back or forward"),
-  );
-  const commands = group(
-    "Commands",
-    COMMAND_ROWS +
-      row(kbd(":Ex", ":q"), "Return to the listing") +
-      row(kbd(":set nokeys", ":set keys"), "Keymaps off or on") +
-      row(kbd(":set nodev", ":set dev"), "Plain words or Vim notation") +
-      row(kbd(':let mapleader = ","'), "Change the leader until reload"),
-  );
-  const motions = group(
-    "Motions",
-    row(kbd("w", "b", "e", "ge"), "Word forward, back, end, previous end") +
-      row(kbd("W", "B", "E", "gE"), "Same for WORDs (blank-separated)") +
-      row(kbd("0", "^", "$", "g_"), "Line start, first or last non-blank, end") +
-      row(kbd("|", "gm", "gM"), "Column N, middle of screen or text") +
-      row(kbd("+", "_", "gj", "gk"), "Next or current line start, display lines") +
-      row(kbd("f", "F", "t", "T"), "Find or till a character on the line") +
-      row(kbd(";", ","), "Repeat the last find, same or reverse") +
-      row(kbd("H", "M", "L"), "Top, middle or bottom of the screen") +
-      row(kbd("zt", "zz", "zb"), "Scroll the line to the top, middle or bottom") +
-      row(kbd("(", ")", "{", "}"), "Previous or next sentence, paragraph") +
-      row(kbd("%", "50%"), "Matching bracket, or percentage of the file") +
-      row(kbd("[(", "[{", "])", "]}"), "Unmatched bracket") +
-      row(kbd("][", "[]"), "End of the next or previous section") +
-      row(kbd("ma", "'a", "`a"), "Set a mark, jump to its line or spot") +
-      row(kbd("mA", "''"), "Mark across READMEs, jump back"),
-  );
-
-  return (
-    `<div class="help-heading"><h2 id="help-title"><span class="input-keys">Keyboard shortcuts</span>` +
-    `<span class="input-touch">Help</span></h2><div class="help-actions">` +
-    `<button type="button" class="help-dev-toggle" data-action="toggle-dev"${attr("aria-pressed", state.devNotation ? "true" : "false")}` +
-    ` title="Key notation: Vim (&lt;leader&gt;ff) or plain (Space then f f). :set dev / :set nodev">` +
-    `Notation: ${state.devNotation ? "Vim" : "Plain"}</button>` +
-    `<button type="button" data-action="close-help" aria-label="Close help">×</button></div></div>` +
-    touch +
-    `<details class="help-keys"><summary>Keyboard shortcuts</summary>` +
-    `<p class="help-hint"><kbd>Esc</kbd> or <kbd>q</kbd> closes</p><div class="help-groups">` +
-    `<div class="help-column">${general}${explorer}${find}</div>` +
-    `<div class="help-column">${readme}${links}${commands}</div>` +
-    `<div class="help-column">${motions}</div></div></details>`
-  );
+/** Help window body: the rendered help file, or its loading and error states. */
+export function renderHelpContent(model: ViewModel): string {
+  if (model.helpError)
+    return (
+      `<div class="help-error" role="alert"><p>${text(model.helpError)}</p>` +
+      `<button type="button" data-action="help-retry">Retry</button></div>`
+    );
+  if (model.helpLoading || !model.helpHtml) return '<p class="help-loading" role="status">Loading help…</p>';
+  return `${model.helpHtml}<div class="nvim-cursor" aria-hidden="true"></div>`;
 }
 
 // ---------------------------------------------------------------- document actions
@@ -591,7 +567,7 @@ export function renderShell(model: ViewModel): string {
   const { state } = model;
   return (
     `<div class="skip-link"><a href="#portfolio-main">Skip to content</a></div>` +
-    `<div class="portfolio-shell" data-reading="${state.isReading}" data-explorer="${model.explorer}">` +
+    `<div class="portfolio-shell" data-reading="${state.isReading}" data-explorer="${model.explorer}" data-help="${state.isHelpOpen ? "open" : "closed"}">` +
     `<header class="tabline">${renderTabline(model)}</header>` +
     `<div class="workspace"><div class="explorer-backdrop" aria-hidden="true" data-action="close-explorer"></div>` +
     `<aside id="portfolio-explorer" class="explorer" aria-label="File Explorer">` +
@@ -602,10 +578,13 @@ export function renderShell(model: ViewModel): string {
     `<div class="document-actions" role="toolbar" aria-label="Document actions">${renderDocumentActions(model)}</div>` +
     `<div class="open-error">${renderOpenError(model.openError)}</div>` +
     `<section class="preview-scroll" data-welcome="${state.isWelcome}" tabindex="0">${renderPreview(model)}</section>` +
-    `</main></div>` +
+    `</main>` +
+    `<aside class="help-pane" aria-labelledby="help-file"${state.isHelpOpen ? "" : " hidden"}>` +
+    `<div class="help-bar">${renderHelpBar(model)}</div>` +
+    `<section class="help-scroll" tabindex="0" aria-label="Help text">${state.isHelpOpen ? renderHelpContent(model) : ""}</section>` +
+    `</aside></div>` +
     `<footer class="${statuslineClass(model)}">${SEARCH_POSITION}${renderStatusline(model)}</footer>` +
     `<form class="command-line">${renderCommandLine(model)}</form></div>` +
-    `<dialog class="help-dialog" aria-labelledby="help-title">${renderHelp(model)}</dialog>` +
     `<dialog class="outline-dialog" aria-labelledby="outline-title">${renderOutline(model)}</dialog>`
   );
 }

@@ -64,7 +64,6 @@ describe("KeymapHandler", () => {
 
   describe("handle leader ff when unavailable does not open file finder", () => {
     const cases: [helpOpen: boolean, keyboardDisabled: boolean][] = [
-      [true, false],
       [false, true],
     ];
     for (const [helpOpen, keyboardDisabled] of cases) {
@@ -74,6 +73,34 @@ describe("KeymapHandler", () => {
         assert.equal(new KeymapHandler().handle(state, "<leader>ff"), "Ignored");
       });
     }
+  });
+
+  test("help window beside the README does not block README keys", () => {
+    const state = createState({ isHelpOpen: true });
+
+    assert.equal(new KeymapHandler().handle(state, "<leader>ff"), "OpenFileFinder");
+    assert.equal(state.isHelpOpen, true);
+  });
+
+  test("handle question mark opens help at the top of help.txt", () => {
+    const state = createState({ helpTags: { "help.txt": "help", clipboard: "clipboard" } });
+
+    const result = new KeymapHandler().handle(state, "?");
+
+    assert.equal(result, "OpenHelp");
+    assert.equal(state.isHelpOpen, true);
+    assert.equal(state.helpPage, "help");
+    assert.equal(state.helpTag, "help.txt");
+  });
+
+  test("handle escape closes help opened beside the README", () => {
+    const state = createState({ isHelpOpen: true, helpSearchQuery: "yank" });
+
+    const result = new KeymapHandler().handle(state, "Escape");
+
+    assert.equal(result, "Changed");
+    assert.equal(state.isHelpOpen, false);
+    assert.equal(state.helpSearchQuery, "");
   });
 
   test("handle enter on folder while reading toggles inline and keeps explorer focus", () => {
@@ -146,7 +173,6 @@ describe("KeymapHandler", () => {
 
   describe("handle leader e when unavailable does not focus explorer", () => {
     const cases: [helpOpen: boolean, keyboardDisabled: boolean][] = [
-      [true, false],
       [false, true],
     ];
     for (const [helpOpen, keyboardDisabled] of cases) {

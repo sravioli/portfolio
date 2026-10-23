@@ -1,0 +1,80 @@
+*visual.txt*  Visual mode and yanking
+
+Select text with the cursor and copy it with Vim keys. This works in a README
+and in the help window. Yanked text goes to the browser clipboard, the "+
+register, see |clipboard|.
+
+==============================================================================
+YANKING                                                             *yank* *y*
+
+y{motion}    Yank the text that {motion} moves over, as in `yw`, `y$`,
+             `yj`, `yG`, or `yfx`. The cursor goes to the start of the
+             yanked text.
+{count}yy    Yank {count} lines.                                          *yy*
+Y            Yank to the end of the line, like `y$` in Neovim.             *Y*
+y{object}    Yank a text object, as in `yiw` or `yap`. See
+             |text-objects|.
+
+Up and down motions such as `j`, `k`, `G`, and `'a` yank whole lines.
+Motions like `e`, `$`, and `f` include the character they land on; `w`,
+`b`, and `l` do not, as in Vim. A count before `y` and the motion
+multiply, so `2y3w` yanks six words.
+
+The yanked text flashes briefly. When more than two lines are yanked, the
+command line says so, as with Vim's 'report' option: >
+	5 lines yanked into "+
+<
+A line is a line on screen, so a long paragraph spans several. Text is copied
+as rendered: headings and list items become lines, table cells are separated
+by tabs, and code keeps its spacing. To copy Markdown source, open the raw
+view with |p| first.
+
+==============================================================================
+VISUAL MODE                                                      *visual-mode*
+
+v            Start Visual mode per character. In Visual mode, `v` ends it.
+                                                                         *v*
+V            Start Visual mode per line. In Visual mode, `V` ends it, and
+             `v` or `V` switches between the two.                          *V*
+gv           Select the previous Visual area again.                       *gv*
+
+The statusline shows VISUAL or V-LINE while Visual mode is on. Any motion
+extends the selection from where it started to the cursor.
+
+In Visual mode:
+
+y            Yank the selection and go back to Normal mode.              *v_y*
+Y            Yank the lines of the selection.                            *v_Y*
+CTRL-C       Yank the selection, like `y`.                          *v_CTRL-C*
+o O          Go to the other end of the selection.                       *v_o*
+iw ap ...    Select a text object, as in `viw` or `vap`. See
+             |text-objects|.
+<Esc>        End Visual mode without yanking.                        *v_<Esc>*
+:            End Visual mode and open the command line.
+
+Dragging over text with the mouse starts Visual mode too, like Vim with
+'mouse' set. A double-click selects a word, and a triple-click selects
+lines. On touch screens the browser keeps its own selection.
+                                                                *visual-mouse*
+
+A click or tap also ends Visual mode.
+
+==============================================================================
+TEXT OBJECTS                                                    *text-objects*
+
+Text objects select a whole thing around the cursor. Use them after `y` or in
+Visual mode. The "a" forms include the white space or brackets around it,
+the "i" forms only what is inside.
+
+aw iw        A word, or the inner word.                              *aw* *iw*
+aW iW        A WORD, or the inner WORD.                              *aW* *iW*
+as is        A sentence, or the inner sentence.                      *as* *is*
+ap ip        A paragraph, or the inner paragraph, linewise.          *ap* *ip*
+a( i(        A ( ) block. `ab` and `ib` do the same.                 *ab* *ib*
+a[ i[        A [ ] block.                                            *a[* *i[*
+a{ i{        A { } block. `aB` and `iB` do the same.                 *aB* *iB*
+a< i<        A < > block.                                            *a<* *i<*
+a" i"        A double quoted string on the line.                     *a"* *i"*
+a' i'        A single quoted string on the line.                     *a'* *i'*
+a`           A string in backticks on the line, with the backticks.       *a`*
+i`           Only the string inside the backticks.                        *i`*

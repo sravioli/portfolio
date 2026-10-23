@@ -1,0 +1,61 @@
+*navigation.txt*  Moving around the portfolio
+
+The screen has a file explorer on the left and the README on the right, like
+Neovim with nvim-tree. Keys go to whichever side has focus.
+
+==============================================================================
+FOCUS                                                                  *focus*
+
+:            Open the command line. Works even with keymaps off, see |'keys'|.
+?            Open help, the same as |:help|.                               *?*
+CTRL-H       Focus the explorer.                                      *CTRL-H*
+<leader>e    Focus the explorer.                                  *<leader>e*
+CTRL-L       Focus the README.                                        *CTRL-L*
+<Tab>        Move between links and buttons, as in any web page.
+
+                                                                 *which-key*
+After <leader>, a popup lists the keys that can follow. <BS> takes back the
+last key, <Esc> cancels.
+
+==============================================================================
+EXPLORER                                                    *explorer* *nvim-tree*
+
+j k <Down> <Up>  Move the selection down or up.               *explorer-keys*
+l <Enter>    Open a file, or expand or collapse a folder.
+h            Collapse the folder, or go to its parent.
+gg G         Go to the first or last entry.
+
+`:NvimTreeToggle` shows or hides the explorer, as does the files icon at the
+top left. See |:NvimTreeToggle|.
+
+==============================================================================
+FINDING FILES                                                         *finder*
+
+<leader>ff   Open the fuzzy finder to find a README by name.     *<leader>ff*
+CTRL-P       The same as `<leader>ff`.                                *CTRL-P*
+CTRL-J CTRL-K  Select the next or previous result.               *finder-keys*
+CTRL-N CTRL-P  The same, as do <Down> and <Up>.
+<Enter>      Open the selected result.
+<Esc>        Close the finder.
+
+Type part of a project name; the letters do not need to be next to each other.
+
+==============================================================================
+PICKING A BREADCRUMB                                                    *pick*
+
+<leader>;    Label each part of the breadcrumb with a letter.     *<leader>;*
+{char}       Open a menu of the files or headings beside that part.
+j k          Move in the menu; CTRL-N, CTRL-P, <Down>, and <Up> too.
+g G          Select the first or last item.
+l <Enter>    Open the item; l expands it into a submenu when it can.
+h            Close the menu and go back to the previous one.
+<Esc> q      Close the menu.
+
+==============================================================================
+LEAVING A README                                                  *leave-readme*
+
+-            Back to the explorer, one level up.                           *-*
+<leader>bx   Close the tab and return to the listing.            *<leader>bx*
+`:q` `:Ex`   Return to the listing, see |:Ex|.
+
+The GitHub button above the README opens its repository on GitHub.

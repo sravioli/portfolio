@@ -157,7 +157,10 @@ async function createCursor(lines, { cursorElement = null } = {}) {
     },
     querySelector(selector) {
       if (selector === ".nvim-cursor") return cursorElement;
-      return selector === ".readme-content, .raw-readme" ? this.root : null;
+      return selector === ".readme-content, .raw-readme" ||
+        selector === ".help-content"
+        ? this.root
+        : null;
     },
     scrollTo({ top }) {
       this.scrollTop = Math.max(
@@ -170,7 +173,9 @@ async function createCursor(lines, { cursorElement = null } = {}) {
   viewport.root = root;
   const document = {
     querySelector(selector) {
-      return selector === ".preview-scroll" ? viewport : null;
+      return selector === ".preview-scroll" || selector === ".help-scroll"
+        ? viewport
+        : null;
     },
     createRange,
     createTreeWalker(_root, _whatToShow, filter) {
@@ -399,4 +404,189 @@ test("line end uses the last column vertically until horizontal or first-nonblan
   assert.equal(firstNonblankReset.cursor.position().column, 3);
   assert.equal(firstNonblankReset.cursor.move("down"), true);
   assert.equal(firstNonblankReset.cursor.position().column, 3);
+});
+
+test("createCursor makes cursors with their own selectors and position", async (t) => {
+  const { cursor, root, restore } = await createCursor(["a", "b", "c"]);
+  t.after(restore);
+  const help = cursor.createCursor({
+    viewport: ".help-scroll",
+    root: ".help-content",
+    documentOf: () => "help",
+  });
+  t.after(() => help.dispose());
+  help.refresh();
+
+  assert.equal(help.position().line, 1);
+  assert.equal(help.motion("down", 2), true);
+  assert.equal(help.position().line, 3);
+  assert.equal(cursor.position().line, 1);
+  assert.equal(help.placeOn(root.lines[1]), true);
+  assert.equal(help.position().line, 2);
+
+  const missing = cursor.createCursor({ viewport: ".missing" });
+  missing.refresh();
+  assert.equal(missing.position(), null);
+});
+
+test("yy, counts, Y, and y{motion} yank like Vim", async (t) => {
+  const { cursor, restore } = await createCursor(["one two", "three", "four five"]);
+  t.after(restore);
+
+  assert.deepEqual(cursor.yank("line", 1), { text: "one two\n", lines: 1, linewise: true });
+  assert.deepEqual(cursor.yank("line", 2), { text: "one two\nthree\n", lines: 2, linewise: true });
+  assert.equal(cursor.yank("lineEnd", 1).text, "one two");
+  assert.equal(cursor.yank("wordForward", 1).text, "one ");
+  assert.equal(cursor.yank("wordEnd", 1).text, "one");
+  cursor.motion("wordForward", 1, {});
+  // `yw` on the last word of a line stops at the end of the line.
+  assert.equal(cursor.yank("wordForward", 1).text, "two");
+  cursor.motion("lineStart", 1, {});
+  assert.deepEqual(cursor.yank("down", 1), { text: "one two\nthree\n", lines: 2, linewise: true });
+  assert.equal(cursor.position().line, 1);
+
+  cursor.motion("goToLineOrBottom", 1, {});
+  cursor.motion("lineEnd", 1, {});
+  // A yank backwards leaves the cursor at the start of the yanked text.
+  assert.equal(cursor.yank("wordBackward", 1).text, "fiv");
+  assert.equal(cursor.position().column, 6);
+  assert.deepEqual(cursor.yank("goToLineOrTop", 1), {
+    text: "one two\nthree\nfour five\n",
+    lines: 3,
+    linewise: true,
+  });
+  assert.equal(cursor.position().line, 1);
+});
+
+test("Y yanks to the end of the line and yl yanks the last character", async (t) => {
+  const { cursor, restore } = await createCursor(["abc"]);
+  t.after(restore);
+
+  cursor.motion("lineEnd", 1, {});
+  assert.equal(cursor.yank("right", 1).text, "c");
+  assert.equal(cursor.yank("lineEnd", 1).text, "c");
+});
+
+test("text objects yank words, quotes, and brackets", async (t) => {
+  const { cursor, restore } = await createCursor(['say "hi there" (a b) now']);
+  t.after(restore);
+
+  assert.equal(cursor.yank("textObject", 1, { argument: "iw" }).text, "say");
+  assert.equal(cursor.yank("textObject", 1, { argument: "aw" }).text, "say ");
+  cursor.motion("findForward", 1, { argument: "h" });
+  assert.equal(cursor.yank("textObject", 1, { argument: 'i"' }).text, "hi there");
+  assert.equal(cursor.yank("textObject", 1, { argument: 'a"' }).text, '"hi there" ');
+  cursor.motion("findForward", 1, { argument: "b" });
+  assert.equal(cursor.yank("textObject", 1, { argument: "i(" }).text, "a b");
+  assert.equal(cursor.yank("textObject", 1, { argument: "ab" }).text, "(a b)");
+  assert.equal(cursor.yank("textObject", 1, { argument: "i{" }), null);
+});
+
+test("Visual mode selects from the anchor to the cursor and yanks it", async (t) => {
+  const { cursor, restore } = await createCursor(["alpha beta", "gamma"]);
+  t.after(restore);
+  const modes = [];
+  cursor.setModeListener((kind) => modes.push(kind));
+
+  assert.equal(cursor.toggleVisual("char"), true);
+  assert.equal(cursor.visualMode(), "char");
+  // No yank of a motion while Visual mode is on.
+  assert.equal(cursor.yank("line", 1), null);
+  cursor.motion("wordEnd", 2, {});
+  cursor.swapVisual();
+  assert.equal(cursor.position().column, 1);
+  assert.deepEqual(cursor.yankVisual(), { text: "alpha beta", lines: 1, linewise: false });
+  assert.equal(cursor.visualMode(), null);
+
+  cursor.toggleVisual("line");
+  cursor.motion("down", 1, {});
+  cursor.toggleVisual("char");
+  assert.equal(cursor.visualMode(), "char");
+  cursor.toggleVisual("line");
+  assert.deepEqual(cursor.yankVisual(), { text: "alpha beta\ngamma\n", lines: 2, linewise: true });
+  assert.equal(cursor.position().line, 1);
+
+  assert.equal(cursor.reselectVisual(), true);
+  assert.equal(cursor.visualMode(), "line");
+  assert.equal(cursor.position().line, 2);
+  cursor.toggleVisual("line");
+  assert.deepEqual(modes, ["char", null, "line", "char", "line", null, "line", null]);
+});
+
+test("a mouse selection becomes a Visual selection", async (t) => {
+  const { cursor, root, restore } = await createCursor(["alpha beta", "gamma"]);
+  t.after(restore);
+  const modes = [];
+  cursor.setModeListener((kind) => modes.push(kind));
+  const [first, second] = root.lines.map((line) => line.textNode);
+  const domRange = (start, startOffset, end, endOffset) => ({
+    commonAncestorContainer: start === end ? start : root.lines[0],
+    startContainer: start,
+    startOffset,
+    endContainer: end,
+    endOffset,
+    intersectsNode: (node) => node === start || node === end,
+  });
+
+  // Dragging from "beta" back to "alp": the cursor stays where the drag ended.
+  assert.equal(cursor.selectRange(domRange(first, 6, second, 3), false, "char"), true);
+  assert.equal(cursor.visualMode(), "char");
+  assert.deepEqual(
+    { line: cursor.position().line, column: cursor.position().column },
+    { line: 1, column: 7 },
+  );
+  assert.deepEqual(cursor.yankVisual(), { text: "beta\ngam", lines: 2, linewise: false });
+
+  assert.equal(cursor.selectRange(domRange(first, 2, first, 4), true, "line"), true);
+  assert.deepEqual(cursor.yankVisual(), { text: "alpha beta\n", lines: 1, linewise: true });
+  // A range that covers no character of the document leaves Normal mode alone.
+  assert.equal(cursor.selectRange(domRange(first, 3, first, 3), true, "char"), false);
+  assert.deepEqual(modes, ["char", null, "line", null]);
+});
+
+test("Visual mode text objects extend the selection", async (t) => {
+  const { cursor, restore } = await createCursor(["one two three"]);
+  t.after(restore);
+
+  cursor.motion("wordForward", 1, {});
+  cursor.toggleVisual("char");
+  assert.equal(cursor.selectObject("iw", 1), true);
+  assert.equal(cursor.yankVisual().text, "two");
+  assert.equal(cursor.position().column, 5);
+});
+
+test("flash matches ignore case unless the pattern has a capital, nearest first", async (t) => {
+  const { cursor, restore } = await createCursor(["Alpha beta", "alpha Beta"]);
+  t.after(restore);
+
+  const lower = cursor.flashMatches("alpha");
+  assert.deepEqual(lower.map((match) => [match.start, match.end, match.next]), [[0, 4, " "], [10, 14, " "]]);
+  assert.ok(lower[0].distance < lower[1].distance);
+  assert.deepEqual(cursor.flashMatches("Alpha").map((match) => match.start), [0]);
+  assert.deepEqual(cursor.flashMatches("alpha", { exact: true }).map((match) => match.start), [10]);
+  assert.deepEqual(cursor.flashMatches("a", { exact: true, direction: 1 }).map((match) => match.start), [4, 9, 10, 14, 19]);
+  assert.deepEqual(cursor.flashSpan(), [0, 19]);
+});
+
+test("flash jumps move the cursor and yank inclusively", async (t) => {
+  const { cursor, restore } = await createCursor(["Alpha beta", "alpha Beta"]);
+  t.after(restore);
+
+  assert.equal(cursor.yank("flashJump", 1, { target: 3 }).text, "Alph");
+  assert.equal(cursor.motion("flashJump", 1, { target: 10 }), true);
+  assert.deepEqual([cursor.position().line, cursor.position().column], [2, 1]);
+});
+
+test("f and t search past the end of the line", async (t) => {
+  const { cursor, restore } = await createCursor(["Alpha beta", "alpha Beta"]);
+  t.after(restore);
+
+  cursor.motion("findForward", 1, { argument: "B" });
+  assert.deepEqual([cursor.position().line, cursor.position().column], [2, 7]);
+  assert.deepEqual(cursor.charSearch(), { direction: 1, till: false, character: "B" });
+  cursor.motion("lineStart", 1, {});
+  cursor.motion("findBackward", 1, { argument: "t" });
+  assert.deepEqual([cursor.position().line, cursor.position().column], [1, 9]);
+  cursor.motion("tillForward", 1, { argument: "B" });
+  assert.deepEqual([cursor.position().line, cursor.position().column], [2, 6]);
 });

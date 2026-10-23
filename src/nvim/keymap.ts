@@ -1,8 +1,10 @@
 import type { NavigationState } from "../lib/navigation-state.ts";
+import { resolveHelpTag } from "../lib/help.ts";
 
 export type KeyAction =
   | "Ignored"
   | "Changed"
+  | "OpenHelp"
   | "OpenSelected"
   | "ScrollUp"
   | "ScrollDown"
@@ -65,23 +67,21 @@ export class KeymapHandler {
   handle(state: NavigationState, key: string, explorerFocused = false): KeyAction {
     if (!state.keyboardEnabled) {
       this.#waitingForSecondG = false;
-      if (key === ":" && !state.isHelpOpen) {
+      if (key === ":") {
         state.beginCommand();
         return "FocusCommand";
       }
-      if (key === "/" && !state.isHelpOpen) {
+      if (key === "/") {
         state.beginSearch();
         return "FocusCommand";
       }
       return "Ignored";
     }
 
-    if (state.isHelpOpen) {
-      if (key === "Escape") {
-        state.isHelpOpen = false;
-        return "Changed";
-      }
-      return "Ignored";
+    // Keys reach here from the README or explorer beside the help window; the help window handles its own.
+    if (state.isHelpOpen && key === "Escape") {
+      state.closeHelp();
+      return "Changed";
     }
 
     const waitingForSecondG = this.#waitingForSecondG;
@@ -179,8 +179,8 @@ export class KeymapHandler {
     }
 
     if (key === "?") {
-      state.isHelpOpen = true;
-      return "Changed";
+      state.openHelp(resolveHelpTag(state.helpTags, ""));
+      return "OpenHelp";
     }
 
     return "Ignored";

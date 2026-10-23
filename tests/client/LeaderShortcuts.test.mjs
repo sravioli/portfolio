@@ -17,6 +17,15 @@ const cursorStub = [
   "invalidate",
   "setNavigator",
   "setMoveListener",
+  "setModeListener",
+  "visualMode",
+  "toggleVisual",
+  "endVisual",
+  "swapVisual",
+  "reselectVisual",
+  "yank",
+  "yankVisual",
+  "selectObject",
   "dispose",
   "recordJump",
 ]
@@ -24,7 +33,10 @@ const cursorStub = [
     (name) =>
       `export function ${name}(...args) { globalThis.cursorCalls?.push(["${name}", ...args]); return false; }`,
   )
-  .join("\n");
+  .join("\n")
+  .concat(
+    "\nexport function createCursor() { return new Proxy({}, { get: (_, name) => (...args) => { if (name !== 'visualMode' && name !== 'endVisual') globalThis.helpCursorCalls?.push([name, ...args]); return false; } }); }",
+  );
 const cursorModule = `data:text/javascript;base64,${Buffer.from(cursorStub).toString("base64")}`;
 const realWhichKey = new URL(
   "../../src/nvim/which-key.js",
@@ -60,12 +72,13 @@ const module = await importHomeModule({
 });
 let now = 100;
 let helpOpen = false;
-let helpDialog = {};
+let helpScroll = {};
 let reading = true;
 let welcome = false;
 const listeners = new Map();
 const calls = [];
 const allCursorCalls = (globalThis.cursorCalls = []);
+const helpCursorCalls = (globalThis.helpCursorCalls = []);
 const cursorCalls = {
   get length() {
     return motionCalls().length;
@@ -81,17 +94,23 @@ globalThis.Element = class {
 };
 globalThis.HTMLElement = class extends Element {};
 const target = new HTMLElement();
+// An element inside the help window.
+const helpTarget = new HTMLElement();
+helpTarget.closest = (query) => (query === ".help-pane" ? helpTarget : null);
 globalThis.window = { addEventListener() {}, removeEventListener() {} };
 globalThis.document = {
   addEventListener: (event, handler) => listeners.set(event, handler),
   removeEventListener() {},
   querySelector: (selector) =>
-    selector === "dialog.help-dialog[open]"
-      ? helpOpen
-        ? helpDialog
-        : null
+    selector === ".help-scroll"
+      ? helpScroll
       : selector === ".portfolio-shell"
-        ? { dataset: { reading: String(reading) } }
+        ? {
+            dataset: {
+              reading: String(reading),
+              help: helpOpen ? "open" : "closed",
+            },
+          }
         : selector === ".preview-scroll"
           ? {
               addEventListener() {},
@@ -104,8 +123,9 @@ globalThis.document = {
 function initialize(leader = "\\", enabled = true) {
   calls.length = 0;
   allCursorCalls.length = 0;
+  helpCursorCalls.length = 0;
   helpOpen = false;
-  helpDialog = {};
+  helpScroll = { addEventListener() {} };
   reading = true;
   welcome = false;
   timers.clear();
@@ -115,6 +135,8 @@ function initialize(leader = "\\", enabled = true) {
     enabled,
     leader,
   );
+  // Setup calls such as setMoveListener are not motions.
+  helpCursorCalls.length = 0;
 }
 
 async function key(value, extras = {}) {
@@ -130,45 +152,6 @@ async function key(value, extras = {}) {
   now += 10;
   return event;
 }
-
-test("help opens in the modal top layer and closes without redundant calls", () => {
-  const calls = [];
-  const dialog = {
-    open: false,
-    showModal() {
-      this.open = true;
-      calls.push("showModal");
-    },
-    close() {
-      this.open = false;
-      calls.push("close");
-    },
-  };
-  module.setHelpOpen(dialog, false);
-  module.setHelpOpen(dialog, true);
-  module.setHelpOpen(dialog, true);
-  assert.equal(dialog.open, true);
-  module.setHelpOpen(dialog, false);
-  module.setHelpOpen(dialog, false);
-  assert.equal(dialog.open, false);
-  assert.deepEqual(calls, ["showModal", "close"]);
-});
-
-test("help opens with keyboard shortcuts expanded when no touch input was seen", () => {
-  const keys = { open: false };
-  const dialog = {
-    open: false,
-    querySelector: (selector) => (selector === ".help-keys" ? keys : null),
-    showModal() {
-      this.open = true;
-    },
-    close() {
-      this.open = false;
-    },
-  };
-  module.setHelpOpen(dialog, true);
-  assert.equal(keys.open, true);
-});
 
 test("leader ff opens search and consumes both f keys", async () => {
   initialize(" ");
@@ -244,9 +227,9 @@ test("disabled keyboard, help, text fields and modal controls do not trigger sea
   assert.equal(calls.length, 0);
   initialize();
   helpOpen = true;
-  await key("\\");
-  await key("f");
-  await key("f");
+  await key("\\", { target: helpTarget });
+  await key("f", { target: helpTarget });
+  await key("f", { target: helpTarget });
   assert.equal(calls.length, 0);
   helpOpen = false;
   for (const selector of [
@@ -385,6 +368,24 @@ test("vim motions run in JS with counts while reading, gx and jumplist keys reac
   );
 });
 
+test("y operators and Visual mode keys reach the README cursor", async () => {
+  initialize(" ");
+  for (const value of ["y", "y", "2", "y", "w", "y", "i", "w", "v", "V", "g", "v"])
+    assert.equal((await key(value)).prevented, true);
+  const edits = allCursorCalls
+    .filter(([name]) => ["yank", "toggleVisual", "reselectVisual"].includes(name))
+    .map(([name, ...args]) => [name, args[0], args[1]]);
+  assert.deepEqual(edits, [
+    ["yank", "line", 1],
+    ["yank", "wordForward", 2],
+    ["yank", "textObject", 1],
+    ["toggleVisual", "char", undefined],
+    ["toggleVisual", "line", undefined],
+    ["reselectVisual", undefined, undefined],
+  ]);
+  assert.deepEqual(calls, []);
+});
+
 test("character arguments win over the leader and shift is ignored", async () => {
   initialize(" ");
   await key("f");
@@ -447,33 +448,80 @@ test("unmapped ctrl combos and lone brackets keep browser behavior", async () =>
     ["down"],
   );
 });
-test("help dialog scrolls with vim keys and q closes it", async () => {
+test("help window moves its own cursor with vim motions and q closes it", async () => {
   initialize(" ");
-  const scrolls = [];
   helpOpen = true;
-  helpDialog = {
-    clientHeight: 400,
-    scrollHeight: 2000,
-    scrollBy: (options) => scrolls.push(["by", options.top]),
-    scrollTo: (options) => scrolls.push(["to", options.top]),
-  };
-  for (const value of ["j", "k", "ArrowDown", "G", "g", "g"]) {
-    assert.equal((await key(value)).prevented, true);
+  for (const value of ["j", "k", "ArrowDown", "G", "g", "g", "3", "w", "f", "q"]) {
+    assert.equal((await key(value, { target: helpTarget })).prevented, true);
   }
-  await key("d", { ctrlKey: true });
-  await key("u", { ctrlKey: true });
-  assert.deepEqual(scrolls, [
-    ["by", 48],
-    ["by", -48],
-    ["by", 48],
-    ["to", 2000],
-    ["to", 0],
-    ["by", 200],
-    ["by", -200],
+  await key("d", { ctrlKey: true, target: helpTarget });
+  await key("u", { ctrlKey: true, target: helpTarget });
+  const plain = { hasCount: false, argument: undefined };
+  assert.deepEqual(helpCursorCalls, [
+    ["motion", "down", 1, plain],
+    ["motion", "up", 1, plain],
+    ["motion", "down", 1, plain],
+    ["motion", "goToLineOrBottom", 1, plain],
+    ["motion", "goToLineOrTop", 1, plain],
+    ["motion", "wordForward", 3, { hasCount: true, argument: undefined }],
+    ["motion", "findForward", 1, { hasCount: false, argument: "q" }],
+    ["charSearch"],
+    ["move", "halfDown"],
+    ["move", "halfUp"],
   ]);
+  assert.equal(motionCalls().length, 0);
   assert.equal(calls.length, 0);
-  assert.equal((await key("q")).prevented, true);
-  assert.deepEqual(calls, [["OnKeyDown", "Escape", false]]);
+  assert.equal((await key("q", { target: helpTarget })).prevented, true);
+  assert.deepEqual(calls, [["OnHelpKey", "close"]]);
+});
+
+test("help window keys: tag stack, search, command line, and no identifier", async () => {
+  initialize(" ");
+  helpOpen = true;
+  const press = (value, extras = {}) => key(value, { target: helpTarget, ...extras });
+  await press("t", { ctrlKey: true });
+  await press("o", { ctrlKey: true });
+  await press("]", { ctrlKey: true });
+  await press("/");
+  await press("n");
+  await press("N");
+  await press(":");
+  await press("Escape");
+  assert.deepEqual(calls, [
+    ["OnHelpKey", "back"],
+    ["OnHelpKey", "back"],
+    ["OnHelpKey", "no-identifier"],
+    ["OnHelpKey", "search"],
+    ["OnHelpKey", "next-match"],
+    ["OnHelpKey", "previous-match"],
+    ["OnKeyDown", ":", false],
+    ["OnHelpKey", "close"],
+  ]);
+  calls.length = 0;
+  assert.equal((await press("x")).prevented, undefined);
+  assert.equal((await press("Enter")).prevented, undefined);
+  assert.deepEqual(calls, []);
+});
+
+test("keys from the README beside the help window keep their meaning", async () => {
+  initialize(" ");
+  helpOpen = true;
+  await key("j");
+  assert.deepEqual(cursorCalls.map((call) => call[1]), ["down"]);
+});
+
+test("with keymaps off the help window still closes and searches", async () => {
+  initialize(" ", false);
+  helpOpen = true;
+  await key("j", { target: helpTarget });
+  await key("q", { target: helpTarget });
+  await key("/", { target: helpTarget });
+  await key("Escape", { target: helpTarget });
+  assert.deepEqual(calls, [
+    ["OnHelpKey", "search"],
+    ["OnHelpKey", "close"],
+  ]);
+  assert.deepEqual(helpCursorCalls, []);
 });
 
 test("colon still reaches the command line while keymaps are off", async () => {

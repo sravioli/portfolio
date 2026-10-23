@@ -1,0 +1,79 @@
+*motions.txt*  Cursor motions in a README
+
+These motions move the cursor in the open README, as in Vim. Most take a
+{count}, see |count|. Text is read as rendered, so a line is a line on screen.
+
+==============================================================================
+WORDS                                                           *word-motions*
+
+w            Forward to the start of the next word.                      *w*
+b            Back to the start of the word.                              *b*
+e            Forward to the end of the word.                             *e*
+ge           Back to the end of the previous word.                      *ge*
+W B E gE     The same for WORDs, which only blanks separate.  *W* *B* *E* *gE*
+
+==============================================================================
+LEFT AND RIGHT                                                   *left-right*
+
+0 <Home>     To the first character of the line.                 *0* *<Home>*
+^            To the first non-blank character of the line.               *^*
+$ <End>      To the end of the line.                              *$* *<End>*
+g_           To the last non-blank character of the line.               *g_*
+`|`          To column {count}.                                        *bar*
+gm           To the middle of the screen width.                         *gm*
+gM           To the middle of the line text.                            *gM*
+f{char}      To the next {char}.                                         *f*
+F{char}      To the previous {char}.                                     *F*
+t{char}      Till before the next {char}.                                *t*
+T{char}      Till after the previous {char}.                             *T*
+;            Repeat the last f, F, t, or T.                              *;*
+,            Repeat it in the other direction.                           *,*
+
+As in flash.nvim, f, F, t, and T search past the end of the line, highlight
+the characters they can reach next, and repeat when you press the same key
+again. See |flash-char|. To jump anywhere on screen, see |flash|.
+
+==============================================================================
+UP AND DOWN                                                         *up-down*
+
++            To the first non-blank of the next line.                    *+*
+_            To the first non-blank of the line, {count} minus one lines
+             down.                                                       *_*
+gj gk        Down or up by display line.                           *gj* *gk*
+H            To the top of the screen.                                   *H*
+M            To the middle of the screen.                                *M*
+L            To the bottom of the screen.                                *L*
+{count}%     To {count} percent of the file, as in `50%`.               *N%*
+
+==============================================================================
+SCROLLING RELATIVE TO THE CURSOR                                    *scroll-cursor*
+
+zt           Scroll the cursor line to the top of the screen.           *zt*
+zz           Scroll the cursor line to the middle.                      *zz*
+zb           Scroll the cursor line to the bottom.                      *zb*
+z<CR> z. z-  The same as zt, zz, and zb, with the cursor at the first
+             non-blank of the line.                         *z<CR>* *z.* *z-*
+
+==============================================================================
+TEXT OBJECT MOTIONS                                         *object-motions*
+
+( )          Back or forward a sentence.                           *(* *)*
+{ }          Back or forward a paragraph.                          *{* *}*
+]] [[        Next or previous heading, see |]]|.
+][ []        End of the next or previous section.                *][* *[]*
+
+==============================================================================
+BRACKETS                                                       *bracket-motions*
+
+%            To the bracket matching the one under the cursor.           *%*
+[( [{        Back to the unmatched ( or {.                         *[(* *[{*
+]) ]}        Forward to the unmatched ) or }.                      *])* *]}*
+
+==============================================================================
+MARKS                                                                  *marks*
+
+m{a-z}       Set a mark at the cursor.                                   *m*
+m{A-Z}       Set a mark that works across READMEs.                      *mA*
+'{a-z}       Jump to the line of the mark.                               *'*
+`{a-z}       Jump to the exact spot of the mark.                         *`*
+''           Jump back to where you were before the last jump.          *''*

@@ -113,17 +113,78 @@ describe("CommandHandler", () => {
     }
   });
 
-  describe("handle help commands open help", () => {
-    for (const command of [":help", ":h", ":h clipboard", ":help clipboard"]) {
+  describe("handle help commands open help at the topic", () => {
+    const helpTags = {
+      "help.txt": "help",
+      clipboard: "clipboard",
+      "clipboard-errors": "clipboard",
+      ":help": "commands",
+    };
+    const cases: [command: string, page: string, tag: string][] = [
+      [":help", "help", "help.txt"],
+      [":h", "help", "help.txt"],
+      [":h clipboard", "clipboard", "clipboard"],
+      [":help clipboard", "clipboard", "clipboard"],
+      [":he clipboard-err", "clipboard", "clipboard-errors"],
+      [":h help", "help", "help.txt"],
+      [":h :hel", "commands", ":help"],
+    ];
+    for (const [command, page, tag] of cases) {
       test(command, () => {
-        const state = createState({ commandText: command, isCommandMode: true });
+        const state = createState({ commandText: command, isCommandMode: true, helpTags });
 
         const result = handleCommand(state, command);
 
         assert.equal(result, "OpenHelp");
         assert.equal(state.isHelpOpen, true);
+        assert.equal(state.helpPage, page);
+        assert.equal(state.helpTag, tag);
       });
     }
+  });
+
+  test("handle help for unknown topic reports E149", () => {
+    const state = createState({ helpTags: { "help.txt": "help" } });
+
+    const result = handleCommand(state, ":h nosuchthing");
+
+    assert.equal(result, "Invalid");
+    assert.equal(state.isHelpOpen, false);
+    assert.equal(state.message, "E149: Sorry, no help for nosuchthing");
+  });
+
+  describe("handle quit commands close an open help window", () => {
+    for (const command of [":helpclose", ":helpc", ":q", ":close"]) {
+      test(command, () => {
+        const state = createState({ isHelpOpen: true });
+        state.openSelected();
+
+        const result = handleCommand(state, command);
+
+        assert.equal(result, "CloseHelp");
+        assert.equal(state.isHelpOpen, false);
+        assert.equal(state.isReading, true);
+      });
+    }
+  });
+
+  test("handle helpclose without help window does nothing", () => {
+    const state = new NavigationState();
+
+    assert.equal(handleCommand(state, ":helpclose"), "None");
+  });
+
+  test("handle search started from help searches the help window", () => {
+    const state = createState({ isHelpOpen: true });
+    state.beginSearch("help");
+
+    assert.equal(handleCommand(state, "/yank"), "SearchHelp");
+    assert.equal(state.helpSearchQuery, "yank");
+    assert.equal(state.searchTarget, "readme");
+
+    state.beginSearch("help");
+    assert.equal(handleCommand(state, "/"), "SearchHelp");
+    assert.equal(state.helpSearchQuery, "yank");
   });
 
   describe("handle keys option updates keyboard enabled", () => {

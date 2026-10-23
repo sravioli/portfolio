@@ -11,6 +11,8 @@ import {
   type ExplorerItemKind,
   type PortfolioEntry,
 } from "./catalog.ts";
+import { helpPageOf, type HelpTags } from "./help.ts";
+import { HELP_INDEX_PAGE } from "./routes.ts";
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(Math.max(value, min), Math.max(min, max));
@@ -30,6 +32,14 @@ export class NavigationState {
   devNotation = true;
   leader = " ";
   isHelpOpen = false;
+  /** Every help tag and the help file defining it; filled from the page data. */
+  helpTags: HelpTags = {};
+  helpPage = HELP_INDEX_PAGE;
+  /** Tag the help window jumped to; `null` is the top of the file. */
+  helpTag: string | null = null;
+  helpSearchQuery = "";
+  /** What a `/` search typed now looks through. */
+  searchTarget: "readme" | "help" = "readme";
   isCommandMode = false;
   commandText = "";
   searchQuery = "";
@@ -71,10 +81,24 @@ export class NavigationState {
     this.message = null;
   }
 
-  beginSearch(): void {
+  beginSearch(target: "readme" | "help" = "readme"): void {
     this.isCommandMode = true;
     this.commandText = "/";
+    this.searchTarget = target;
     this.message = null;
+  }
+
+  /** Shows the help file defining `tag`, scrolled to it. */
+  openHelp(tag: string | null): void {
+    this.isHelpOpen = true;
+    this.helpPage = helpPageOf(this.helpTags, tag);
+    this.helpTag = tag;
+  }
+
+  closeHelp(): void {
+    this.isHelpOpen = false;
+    this.helpSearchQuery = "";
+    this.searchTarget = "readme";
   }
 
   endCommand(): void {

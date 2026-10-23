@@ -75,11 +75,13 @@ The tree becomes toggleable on every device.
 - **Finder:** full screen, input focused on open, results kept above the soft
   keyboard (`visualViewport`), no preview pane.
 - **Outline:** headings listed in a bottom sheet; tapping one scrolls to it.
-- **Help:** touch-first content; keyboard bindings live in a collapsed
-  section. The mode follows the last input used, not the screen width: a touch
-  `pointerdown` switches to touch, a key pressed outside a text field switches
-  back (soft keyboards only type into fields). Keyboard users get the bindings
-  expanded.
+- **Help:** Vim-style help files (`src/help/*.txt`) rendered as a help
+  window. On wide screens it opens beside the README like a split; at 700px
+  or less it replaces the README until closed. Its bar is a statusline (file
+  name and a 44px Close button); the tabline Back, Find and `?` buttons act on
+  help while it is the current window (always on narrow screens, when focused
+  on wide ones). Every help tag has its own URL,
+  e.g. `/help/clipboard/#help-clipboard-errors`. `touch.txt` covers touch use.
 - **Code blocks:** a wrap toggle on every block, remembered across visits.
 - **Welcome screen:** touch wording that points at what is on screen (the
   explorer, search and `?` icons and where they sit); every line is tappable.

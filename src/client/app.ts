@@ -4,7 +4,24 @@ import { handleCommand } from "../nvim/commands.ts";
 import { copiedLineCount } from "../lib/format.ts";
 import { KeymapHandler, type KeyAction } from "../nvim/keymap.ts";
 import { NavigationState } from "../lib/navigation-state.ts";
-import { documentKey, documentUrl, entryFromPath, fragmentUrl, pageTitle, rawUrl, siteUrl } from "../lib/routes.ts";
+import {
+  documentKey,
+  documentUrl,
+  entryFromPath,
+  fragmentUrl,
+  HELP_INDEX_PAGE,
+  helpAnchor,
+  helpFragmentUrl,
+  helpPageFromPath,
+  helpPageUrl,
+  helpTagFromHash,
+  helpTagUrl,
+  pageTitle,
+  rawUrl,
+  siteUrl,
+  SITE_TITLE,
+} from "../lib/routes.ts";
+import { resolveHelpTag, type HelpTags } from "../lib/help.ts";
 import * as view from "../lib/view.ts";
 import { Region } from "./dom.ts";
 import { openFinder, type Finder } from "./finder.ts";
@@ -92,8 +109,9 @@ export function start(): void {
   const status = new Region(statusline);
   const commandForm = required<HTMLFormElement>(shell, ".command-line");
   const commandLine = new Region(commandForm);
-  const helpDialog = required<HTMLDialogElement>(document, ".help-dialog");
-  const help = new Region(helpDialog);
+  const helpPane = required<HTMLElement>(shell, ".help-pane");
+  const helpBar = new Region(required(helpPane, ".help-bar"));
+  const helpScroll = required<HTMLElement>(helpPane, ".help-scroll");
   const documentActions = new Region(required(shell, ".document-actions"));
   const outlineDialog = required<HTMLDialogElement>(document, ".outline-dialog");
   const outline = new Region(outlineDialog);
@@ -122,6 +140,26 @@ export function start(): void {
   let previewKey = "";
   let previewDocument: string | null = null;
 
+  const helpFragments = new Map<string, string>();
+  let helpHtml: string | null = null;
+  let helpLoading = false;
+  let helpError: string | null = null;
+  /** Markup inside the help window; search highlights change the DOM, so it is only replaced when this changes. */
+  let renderedHelp = "";
+  /** Help location on screen, and the earlier ones `CTRL-T` returns to, like Vim's tag stack. */
+  let helpShown: { page: string; tag: string } | null = null;
+  const helpStack: { page: string; tag: string; scroll: number }[] = [];
+  let previewScrollBeforeHelp = 0;
+  /** Whether a command typed from the help window returns focus there. */
+  let commandFromHelp = false;
+  /** Whether the help window was focused last on a wide screen, making it the current window. */
+  let helpFocused = false;
+  let helpStatus: view.HelpStatus | null = null;
+  let helpStatusPage = "";
+  /** Visual mode of the README or help cursor, for the statusline mode block. */
+  let visualMode: view.VisualMode | null = null;
+  let visualInHelp = false;
+
   const model = (): view.ViewModel => ({
     state,
     explorer: !explorerReady ? "pending" : state.isExplorerOpen ? "open" : "closed",
@@ -137,6 +175,13 @@ export function start(): void {
     scrollPosition,
     headings,
     openError,
+    helpHtml,
+    helpLoading,
+    helpError,
+    helpBack: helpStack.length > 0,
+    helpCurrent: state.isHelpOpen && (narrowLayout || helpFocused),
+    helpStatus: helpStatusPage === state.helpPage ? helpStatus : null,
+    visualMode: visualInHelp === (state.isHelpOpen && (narrowLayout || helpFocused)) ? visualMode : null,
   });
 
   // ------------------------------------------------------------ rendering
@@ -158,9 +203,8 @@ export function start(): void {
     commandLine.update(view.renderCommandLine(current));
     const input = commandInput();
     if (input.value !== state.commandText) input.value = state.commandText;
-    help.update(view.renderHelp(current));
+    renderHelp(current);
     syncExplorer();
-    if (helpDialog.open !== state.isHelpOpen) home.setHelpOpen(helpDialog, state.isHelpOpen);
     if (outlineOpen && (!view.documentLoaded(current) || state.isRawView)) outlineOpen = false;
     outline.update(view.renderOutline(current));
     if (outlineDialog.open !== outlineOpen) {
@@ -184,6 +228,29 @@ export function start(): void {
     if (state.searchQuery.length > 0) home.searchReadme(state.searchQuery);
   }
 
+  function renderHelp(current: view.ViewModel): void {
+    const open = state.isHelpOpen;
+    if (open !== (shell.dataset.help === "open")) {
+      // On a narrow screen the help window covers the README, which keeps its place underneath.
+      if (open) previewScrollBeforeHelp = preview.scrollTop;
+      shell.dataset.help = open ? "open" : "closed";
+      helpPane.hidden = !open;
+      if (!open) {
+        preview.scrollTop = previewScrollBeforeHelp;
+        helpShown = null;
+        helpStack.length = 0;
+        home.clearHelpSearch();
+      }
+    }
+    helpBar.update(view.renderHelpBar(current));
+    const content = open ? view.renderHelpContent(current) : "";
+    if (content !== renderedHelp) {
+      home.clearHelpSearch();
+      helpScroll.innerHTML = content;
+      renderedHelp = content;
+    }
+  }
+
   const commandInput = (): HTMLInputElement => required<HTMLInputElement>(commandForm, "#command-input");
 
   // ------------------------------------------------------------ history
@@ -192,25 +259,62 @@ export function start(): void {
 
   function syncHistory(): void {
     if (applyingHistory) return;
+    if (state.isHelpOpen) {
+      syncHelpHistory();
+      return;
+    }
     const target = state.isReading ? state.currentDocument : undefined;
-    if (target === null || entryFromPath(location.pathname) === target) return;
+    if (target === null || (helpPageFromPath(location.pathname) === null && entryFromPath(location.pathname) === target))
+      return;
     const url = target === undefined ? siteUrl("") : documentUrl(target);
     if (home.consumeDrawerEntry()) history.replaceState(null, "", url);
     else history.pushState(null, "", url);
     document.title = pageTitle(target);
   }
 
+  const helpFileTag = (page: string): string => `${page}.txt`;
+
+  function syncHelpHistory(): void {
+    const page = state.helpPage;
+    const tag = state.helpTag ?? helpFileTag(page);
+    const hashTag = tag === helpFileTag(page) ? null : tag;
+    if (helpPageFromPath(location.pathname) === page && helpTagFromHash(location.hash) === hashTag) return;
+    history.pushState(null, "", hashTag === null ? helpPageUrl(page) : helpTagUrl(page, hashTag));
+    document.title = `${helpFileTag(page)} | ${SITE_TITLE}`;
+  }
+
+  /** Opens the help location a history entry names; returns whether it was a help page. */
+  function applyHelpLocation(): boolean {
+    const page = helpPageFromPath(location.pathname);
+    if (page === null) return false;
+    const hashTag = helpTagFromHash(location.hash);
+    state.openHelp(hashTag !== null && state.helpTags[hashTag] === page ? hashTag : helpFileTag(page));
+    document.title = `${helpFileTag(page)} | ${SITE_TITLE}`;
+    return true;
+  }
+
   function onPopState(event: PopStateEvent): void {
     if ((event.state as { portfolioDrawer?: boolean } | null)?.portfolioDrawer) return;
-    const target = entryFromPath(location.pathname);
-    if (target === null) {
-      location.reload();
-      return;
-    }
-    const showing = state.isReading ? state.currentDocument : state.isWelcome ? undefined : null;
-    if (target === showing) return;
     applyingHistory = true;
     try {
+      if (applyHelpLocation()) {
+        const top = helpStack.at(-1);
+        if (top !== undefined && top.page === state.helpPage && top.tag === state.helpTag) helpStack.pop();
+        void showHelp({ push: false, scroll: top?.tag === state.helpTag ? top.scroll : undefined });
+        return;
+      }
+      const leavingHelp = state.isHelpOpen;
+      if (leavingHelp) state.closeHelp();
+      const target = entryFromPath(location.pathname);
+      if (target === null) {
+        location.reload();
+        return;
+      }
+      const showing = state.isReading ? state.currentDocument : state.isWelcome ? undefined : null;
+      if (target === showing) {
+        if (leavingHelp) render();
+        return;
+      }
       document.title = pageTitle(target);
       if (target === undefined) {
         closeDocument(false);
@@ -221,6 +325,150 @@ export function start(): void {
     } finally {
       applyingHistory = false;
     }
+  }
+
+  // ------------------------------------------------------------ help
+
+  async function loadHelpPage(): Promise<boolean> {
+    const page = state.helpPage;
+    helpError = null;
+    helpHtml = helpFragments.get(page) ?? null;
+    if (helpHtml === null) {
+      helpLoading = true;
+      render();
+      try {
+        const html = await fetchText(helpFragmentUrl(page));
+        helpFragments.set(page, html);
+        if (!state.isHelpOpen || state.helpPage !== page) return false;
+        helpHtml = html;
+      } catch (error) {
+        if (!state.isHelpOpen || state.helpPage !== page) return false;
+        helpError = `E149: Sorry, no help for ${helpFileTag(page)}: ${errorMessage(error)}`;
+      }
+      helpLoading = false;
+    }
+    render();
+    return helpHtml !== null;
+  }
+
+  /** Scrolls the help window to `tag`, or to `scroll` when returning to an earlier place. */
+  function positionHelp(tag: string, scroll?: number): void {
+    home.refreshHelpCursor();
+    for (const marked of helpScroll.querySelectorAll(".help-target")) marked.classList.remove("help-target");
+    const target = tag === helpFileTag(state.helpPage) ? null : document.getElementById(helpAnchor(tag));
+    if (target !== null && helpScroll.contains(target)) target.classList.add("help-target");
+    if (scroll !== undefined) helpScroll.scrollTop = scroll;
+    else if (target !== null && helpScroll.contains(target))
+      helpScroll.scrollTop +=
+        target.getBoundingClientRect().top - helpScroll.getBoundingClientRect().top - 8;
+    else helpScroll.scrollTop = 0;
+    home.placeHelpCursor(scroll === undefined ? target : null);
+  }
+
+  /**
+   * Shows the help location in the state. `push` remembers the place being left for `CTRL-T`;
+   * `scroll` restores a remembered scroll position.
+   */
+  async function showHelp(options: { push: boolean; scroll?: number }): Promise<void> {
+    const page = state.helpPage;
+    const tag = state.helpTag ?? helpFileTag(page);
+    if (options.push && helpShown !== null && (helpShown.page !== page || helpShown.tag !== tag))
+      helpStack.push({ ...helpShown, scroll: helpScroll.scrollTop });
+    helpShown = { page, tag };
+    if (narrowLayout) state.isExplorerOpen = false;
+    if (!(await loadHelpPage()) || state.helpPage !== page) return;
+    positionHelp(tag, options.scroll);
+    helpScroll.focus({ preventScroll: true });
+  }
+
+  function openHelpTag(tag: string): Promise<void> {
+    state.openHelp(tag);
+    return showHelp({ push: true });
+  }
+
+  async function helpBack(): Promise<void> {
+    const entry = helpStack.pop();
+    if (entry === undefined) {
+      state.showError("E73: Tag stack empty");
+      render();
+      return;
+    }
+    state.openHelp(entry.tag);
+    await showHelp({ push: false, scroll: entry.scroll });
+  }
+
+  function closeHelp(): void {
+    state.closeHelp();
+    render();
+    home.focusPreview();
+  }
+
+  function beginHelpSearch(): void {
+    state.beginSearch("help");
+    render();
+    focusCommandLine();
+  }
+
+  function focusCommandLine(): void {
+    commandFromHelp = document.activeElement !== null && helpPane.contains(document.activeElement);
+    home.focusCommand();
+    home.setCommandCaretToEnd();
+  }
+
+  function searchHelp(): void {
+    const query = state.helpSearchQuery;
+    const matches = home.searchHelp(query);
+    if (matches === 0) state.showError(`E486: Pattern not found: ${query}`);
+    else state.message = `/${query} [1/${matches}]`;
+    render();
+  }
+
+  function moveHelpMatch(direction: number): void {
+    const query = state.helpSearchQuery;
+    if (query.length === 0) {
+      state.showError("E35: No previous regular expression");
+      render();
+      return;
+    }
+    let { index, count } = home.moveHelpMatch(direction);
+    // The page was replaced since the search: search it again.
+    if (count === 0 && home.searchHelp(query) > 0) ({ index, count } = home.moveHelpMatch(direction === 1 ? 0 : -1));
+    if (count === 0) state.showError(`E486: Pattern not found: ${query}`);
+    else state.message = `/${query} [${index}/${count}]`;
+    render();
+  }
+
+  async function onHelpKey(action: string): Promise<void> {
+    switch (action) {
+      case "close":
+        closeHelp();
+        return;
+      case "search":
+        beginHelpSearch();
+        return;
+      case "back":
+        await helpBack();
+        return;
+      case "next-match":
+        moveHelpMatch(1);
+        return;
+      case "previous-match":
+        moveHelpMatch(-1);
+        return;
+      case "no-identifier":
+        state.showError("E349: No identifier under cursor");
+        render();
+        return;
+      case "leave":
+        if (!narrowLayout) home.focusPreview();
+        return;
+    }
+  }
+
+  // Focus after a command or Esc in the command line: the help window when the command came from it.
+  function focusAfterCommand(): void {
+    if (state.isHelpOpen && (commandFromHelp || narrowLayout)) helpScroll.focus({ preventScroll: true });
+    else home.focusPreview();
   }
 
   // ------------------------------------------------------------ explorer
@@ -412,7 +660,30 @@ export function start(): void {
     const source = await ensureSource();
     if (source === null) return;
     if (await home.copyText(source)) state.message = `${copiedLineCount(source)} lines yanked into "+`;
-    else state.showError('clipboard: No provider. Try ":h clipboard".');
+    else state.showError('clipboard: Browser denied access. See ":h clipboard-errors".');
+    render();
+  }
+
+  function onVisualMode(kind: view.VisualMode | null, inHelp: boolean): void {
+    if (visualMode === kind && visualInHelp === inHelp) return;
+    visualMode = kind;
+    visualInHelp = inHelp;
+    render();
+  }
+
+  // Vim reports a yank only when it spans more lines than 'report' (2).
+  function onYank(lines: number, copied: boolean): void {
+    if (!copied) state.showError('clipboard: Browser denied access. See ":h clipboard-errors".');
+    else if (lines > 2) state.message = `${lines} lines yanked into "+`;
+    else return;
+    render();
+  }
+
+  // flash.nvim shows the typed pattern after a lightning bolt while a jump is active.
+  function onFlashPrompt(text: string | null): void {
+    if (text !== null) state.message = `${view.FLASH_PROMPT}${text}`;
+    else if (state.message?.startsWith(view.FLASH_PROMPT)) state.message = "";
+    else return;
     render();
   }
 
@@ -421,7 +692,7 @@ export function start(): void {
     if (entry === null) return;
     const url = new URL(documentUrl(entry), location.href).href;
     if (await home.copyText(url)) state.message = `Copied link: ${url}`;
-    else state.showError('clipboard: No provider. Try ":h clipboard".');
+    else state.showError('clipboard: Browser denied access. See ":h clipboard-errors".');
     render();
   }
 
@@ -529,8 +800,10 @@ export function start(): void {
         break;
       case "FocusCommand":
         render();
-        home.focusCommand();
-        home.setCommandCaretToEnd();
+        focusCommandLine();
+        return true;
+      case "OpenHelp":
+        await showHelp({ push: true });
         return true;
       case "Changed":
         if (!state.isReading) cancelReadmeLoad();
@@ -547,8 +820,10 @@ export function start(): void {
 
   // ------------------------------------------------------------ command line
 
-  function beginCommandFromInput(): void {
+  function beginCommandFromInput(event: FocusEvent): void {
     if (state.isCommandMode) return;
+    // Clicked or tapped into; keys that open the command line record their origin in focusCommandLine.
+    commandFromHelp = event.relatedTarget instanceof Node && helpPane.contains(event.relatedTarget);
     state.beginCommand();
     commandHistory.reset();
     render();
@@ -572,7 +847,7 @@ export function start(): void {
       state.endCommand();
       commandHistory.reset();
       render();
-      home.focusPreview();
+      focusAfterCommand();
     }
   }
 
@@ -595,7 +870,13 @@ export function start(): void {
       home.searchReadme(state.searchQuery);
     }
     home.applyLeader(state.leader);
-    if (action !== "OpenHelp") home.focusPreview();
+    if (action === "OpenHelp") {
+      await showHelp({ push: true });
+      return;
+    }
+    if (action === "SearchHelp") searchHelp();
+    if (action === "CloseHelp") home.focusPreview();
+    else focusAfterCommand();
     if (action === "Reload") await retryReadme();
   }
 
@@ -634,6 +915,38 @@ export function start(): void {
     render();
   }
 
+  function onHelpPosition(
+    line: number,
+    column: number,
+    total: number,
+    position: string,
+    bytes: number,
+    page: string,
+  ): void {
+    if (!state.isHelpOpen || page !== state.helpPage) return;
+    const boundedTotal = Math.max(1, total);
+    const next: view.HelpStatus = {
+      line: Math.min(Math.max(line, 1), boundedTotal),
+      column: Math.max(1, column),
+      total: boundedTotal,
+      position,
+      bytes: Math.max(0, bytes),
+    };
+    if (
+      helpStatus !== null &&
+      helpStatusPage === page &&
+      helpStatus.line === next.line &&
+      helpStatus.column === next.column &&
+      helpStatus.total === next.total &&
+      helpStatus.position === next.position &&
+      helpStatus.bytes === next.bytes
+    )
+      return;
+    helpStatus = next;
+    helpStatusPage = page;
+    render();
+  }
+
   const sameHeadings = (
     left: readonly view.HeadingBreadcrumb[],
     right: readonly view.HeadingBreadcrumb[],
@@ -665,6 +978,15 @@ export function start(): void {
             args[4] as view.HeadingBreadcrumb[],
             args[5] as string | null,
           );
+        case "OnHelpPosition":
+          return onHelpPosition(
+            args[0] as number,
+            args[1] as number,
+            args[2] as number,
+            args[3] as string,
+            args[4] as number,
+            args[5] as string,
+          );
         case "OnInternalRepositoryLink":
           return openRepository(args[0] as string);
         case "OnMissingAnchor":
@@ -673,6 +995,14 @@ export function start(): void {
           return onLayoutChanged(args[0] as boolean);
         case "OnDrawerDismissed":
           return onDrawerDismissed();
+        case "OnHelpKey":
+          return onHelpKey(args[0] as string);
+        case "OnVisualMode":
+          return onVisualMode(args[0] as view.VisualMode | null, args[1] as boolean);
+        case "OnYank":
+          return onYank(args[0] as number, args[1] as boolean);
+        case "OnFlashPrompt":
+          return onFlashPrompt(args[0] as string | null);
         case "GetPickMenu":
           return getPickMenu(args[0] as string);
         default:
@@ -693,14 +1023,16 @@ export function start(): void {
     "toggle-keys": toggleKeyboard,
     "toggle-theme": toggleTheme,
     find: showFinder,
-    help: () => {
-      state.isHelpOpen = true;
-      render();
+    help: () => openHelpTag(resolveHelpTag(state.helpTags, "") ?? helpFileTag(HELP_INDEX_PAGE)),
+    "close-help": closeHelp,
+    "help-search": () => {
+      beginHelpSearch();
+      // Only offered while help is the current window, so the search returns there.
+      commandFromHelp = true;
     },
-    "close-help": () => {
-      state.isHelpOpen = false;
-      render();
-    },
+    "help-back": () => (helpStack.length > 0 ? helpBack() : closeHelp()),
+    "help-topics": () => openHelpTag("help-topics"),
+    "help-retry": () => showHelp({ push: false }),
     "close-explorer": () => {
       state.isExplorerOpen = false;
       render();
@@ -751,6 +1083,12 @@ export function start(): void {
       void openSelected();
       return;
     }
+    const helpLink = event.target.closest<HTMLElement>(".help-pane a[data-help-tag]");
+    if (helpLink !== null) {
+      event.preventDefault();
+      void openHelpTag(helpLink.dataset.helpTag ?? "");
+      return;
+    }
     const button = event.target.closest<HTMLElement>("[data-action]");
     const action = button?.dataset.action;
     if (action !== undefined && Object.hasOwn(ACTIONS, action)) {
@@ -773,10 +1111,14 @@ export function start(): void {
   });
   commandForm.addEventListener("focusin", beginCommandFromInput);
   commandForm.addEventListener("focusout", endCommandFromInput);
-  helpDialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    state.isHelpOpen = false;
-    render();
+  // The window focused last is the current one; the tabline and command line leave it unchanged.
+  shell.addEventListener("focusin", (event) => {
+    if (!(event.target instanceof Node) || tabline.element.contains(event.target) || commandForm.contains(event.target))
+      return;
+    const inHelp = helpPane.contains(event.target);
+    if (inHelp === helpFocused) return;
+    helpFocused = inHelp;
+    if (state.isHelpOpen && !narrowLayout) render();
   });
   outlineDialog.addEventListener("cancel", (event) => {
     event.preventDefault();
@@ -786,7 +1128,20 @@ export function start(): void {
 
   // ------------------------------------------------------------ startup
 
-  const initial = entryFromPath(location.pathname);
+  const helpData = document.querySelector("#help-tags")?.textContent;
+  if (helpData) state.helpTags = JSON.parse(helpData) as HelpTags;
+  const initialHelp = applyHelpLocation();
+  if (initialHelp) {
+    const article = helpScroll.querySelector(".help-content");
+    if (article !== null) {
+      helpHtml = article.outerHTML;
+      helpFragments.set(state.helpPage, helpHtml);
+      renderedHelp = view.renderHelpContent(model());
+    }
+    helpShown = { page: state.helpPage, tag: state.helpTag ?? helpFileTag(state.helpPage) };
+    shell.dataset.help = "open";
+  }
+  const initial = initialHelp ? undefined : entryFromPath(location.pathname);
   if (initial) {
     state.navigateTo(initial.repository);
     const key = documentKey(initial);
@@ -806,6 +1161,10 @@ export function start(): void {
   home.initialize(adapter, state.keyboardEnabled, state.leader);
   initializeExplorer();
   render();
+  if (initialHelp && helpShown !== null) {
+    positionHelp(helpShown.tag);
+    helpScroll.focus({ preventScroll: true });
+  }
   if (previewDocument !== null) {
     home.refreshPreview();
     if (state.currentDocument !== null) prefetchSource(state.currentDocument);

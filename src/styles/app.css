@@ -100,6 +100,47 @@
   color: var(--text);
 }
 
+/* Visual-mode selection and the brief yank flash of the Vim cursor (CSS Custom Highlight API). */
+::highlight(nvim-visual) {
+  background-color: var(--selection);
+  color: var(--text);
+}
+
+::highlight(nvim-yank) {
+  background-color: var(--warning);
+  color: var(--bg);
+}
+
+/* flash.nvim jumps: a dimmed backdrop, the matches, the match Enter jumps to, and the jump labels. */
+::highlight(flash-backdrop) {
+  color: var(--comment);
+}
+
+::highlight(flash-match) {
+  background-color: var(--search);
+  color: var(--text);
+}
+
+::highlight(flash-current) {
+  background-color: var(--warning);
+  color: var(--bg);
+}
+
+.flash-labels {
+  position: fixed;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.flash-label {
+  position: absolute;
+  padding: 0 1px;
+  background-color: var(--red);
+  color: var(--bg);
+  font-weight: 700;
+}
+
 html,
 body {
   width: 100%;
@@ -564,7 +605,8 @@ a {
   position: relative;
 }
 
-.code-wrap-toggle {
+.code-wrap-toggle,
+.code-copy {
   position: absolute;
   top: 6px;
   right: 6px;
@@ -583,30 +625,52 @@ a {
   transition: opacity 120ms ease-out, color 120ms ease-out;
 }
 
-.code-wrap-toggle::before {
+.code-wrap-toggle {
+  right: 38px;
+}
+
+.code-wrap-toggle::before,
+.code-copy::before {
   content: "\f05b6";
   font-size: 15px;
   line-height: 1;
 }
 
+.code-copy::before {
+  content: "\f018f";
+}
+
+.code-copy[data-copied]::before {
+  content: "\f012c";
+}
+
 .code-block:hover .code-wrap-toggle,
-.code-wrap-toggle:focus-visible {
+.code-block:hover .code-copy,
+.code-wrap-toggle:focus-visible,
+.code-copy:focus-visible {
   opacity: 1;
 }
 
 .code-wrap-toggle:hover,
-.code-wrap-toggle[aria-pressed="true"] {
+.code-wrap-toggle[aria-pressed="true"],
+.code-copy:hover {
   color: var(--blue);
 }
 
-.code-wrap-toggle:focus-visible {
+.code-copy[data-copied] {
+  color: var(--green);
+  opacity: 1;
+}
+
+.code-wrap-toggle:focus-visible,
+.code-copy:focus-visible {
   outline: 1px solid var(--blue);
   outline-offset: 1px;
 }
 
-/* Keep the first line from running under the button. */
+/* Keep the first line from running under the buttons. */
 .code-block pre {
-  padding-right: 44px;
+  padding-right: 76px;
 }
 
 :root[data-code-wrap] .readme-content pre {
@@ -900,6 +964,25 @@ a {
   content: "";
 }
 
+/* Mode arrow straight into the file segment, as in the help statusline, which has no cwd. */
+.raised-arrow {
+  background: var(--raised);
+  clip-path: none;
+}
+
+.raised-arrow::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--blue);
+  clip-path: polygon(0 0, 1px 0, 100% 50%, 1px 100%, 0 100%);
+  content: "";
+}
+
+.command-status .raised-arrow::before {
+  background: var(--gold);
+}
+
 .cwd-segment {
   height: 20px;
   padding: 0 9px;
@@ -1040,6 +1123,14 @@ a {
 
 .command-status .blue-arrow {
   background: var(--gold);
+}
+
+.visual-status .mode-block,
+.visual-status .blue-arrow,
+.visual-status .raised-arrow::before,
+.visual-status .position-block,
+.visual-status .position-block::before {
+  background: var(--purple);
 }
 
 .insert-status .mode-block {
@@ -1193,20 +1284,6 @@ a {
   padding-right: 8px;
 }
 
-.help-dialog {
-  width: max-content;
-  max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
-  padding: 18px 22px;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--text);
-}
-
-.help-dialog::backdrop {
-  background: var(--backdrop);
-}
-
 /* Reading actions for touch and narrow screens; wide pointer layouts keep the plain editor chrome. */
 .document-actions {
   display: none;
@@ -1328,161 +1405,244 @@ a {
   color: var(--muted);
 }
 
-.help-heading {
+/* Help window: a read-only split beside the README, like `:help` in Neovim. */
+.help-pane {
   display: flex;
-  justify-content: space-between;
-  align-items: start;
-  border-bottom: 1px solid var(--line);
+  flex: 0 0 clamp(36ch, 45%, 84ch);
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--bg);
 }
 
-.help-heading h2 {
-  margin: 0 0 10px;
-  font-size: 18px;
+.help-pane[hidden] {
+  display: none;
 }
 
-.help-heading button {
-  background: transparent;
-  color: var(--muted);
-  font-size: 20px;
-}
-
-.help-actions {
+.help-bar {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 31px;
+  padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 13px;
 }
 
-.help-heading .help-dev-toggle {
-  font-size: 12px;
-}
-
-.help-heading .help-dev-toggle[aria-pressed="true"] {
-  color: var(--gold);
-}
-
-.help-hint {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 2;
-}
-
-/* Touch-only help and labels; JS sets data-touch-input from the last pointer or key used. */
-.input-touch,
-.help-touch,
-.help-keys > summary {
-  display: none;
-}
-
-:root[data-touch-input] .input-keys {
-  display: none;
-}
-
-:root[data-touch-input] .input-touch {
-  display: inline;
-}
-
-:root[data-touch-input] .help-touch {
-  display: block;
-}
-
-:root[data-touch-input] .help-keys > summary {
-  display: list-item;
-}
-
-:root[data-touch-input] .help-dialog:not(:has(.help-keys[open])) .help-dev-toggle {
-  display: none;
-}
-
-.help-touch .help-group {
-  grid-template-columns: max-content minmax(0, 1fr);
-  column-gap: 14px;
-}
-
-.help-touch dd {
-  white-space: normal;
-}
-
-.help-icon {
-  color: var(--blue);
-}
-
-.help-note {
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.help-keys > summary {
-  margin-top: 18px;
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-  color: var(--blue);
-  font-size: 12px;
+.help-file {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.help-groups {
+.help-flags {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.help-close {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 26px;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 18px;
+  text-decoration: none;
+}
+
+.help-close:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.help-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px 16px 40px;
+  outline: none;
+}
+
+.help-scroll:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--blue);
+}
+
+.help-loading,
+.help-error {
+  color: var(--muted);
+}
+
+.help-error p {
+  color: var(--error);
+}
+
+.help-error button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+.help-content {
+  max-width: 80ch;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.help-content p {
+  margin: 0 0 10px;
+}
+
+.help-title {
   display: flex;
   flex-wrap: wrap;
-  align-items: start;
-  gap: 0 32px;
-  margin-top: 6px;
-}
-
-.help-column {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: 14px;
-}
-
-.help-group {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  align-content: start;
-  padding-top: 14px;
-}
-
-.help-group > * {
-  grid-column: 1 / -1;
-}
-
-.help-group h3 {
-  margin: 0 0 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--line);
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.help-dialog dl {
-  display: grid;
-  grid-template-columns: subgrid;
-  align-items: baseline;
-  row-gap: 7px;
-  margin: 0;
-  font-size: 12px;
-}
-
-.help-dialog dt {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  color: var(--muted);
-}
-
-.help-dialog dd {
-  margin: 0;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin: 0 0 12px;
   color: var(--text);
-  line-height: 1.5;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.help-rule {
+  margin: 16px 0 10px;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.help-section {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin: 0 0 10px;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.help-item {
+  margin: 0 0 12px;
+}
+
+.help-item h3 {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin: 0;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.help-item p {
+  margin-left: 2ch;
+}
+
+.help-tag-line {
+  text-align: right;
+}
+
+.help-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 1ch;
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.help-tag {
+  color: var(--purple);
+  scroll-margin-top: 8px;
+}
+
+.help-tag::before,
+.help-tag::after {
+  content: "*";
+  color: var(--comment);
+}
+
+.help-target {
+  background: var(--search);
+  color: var(--text);
+}
+
+.help-link {
+  color: var(--cyan);
+  text-decoration: none;
+}
+
+.help-link::before,
+.help-link::after {
+  content: "|";
+  color: var(--comment);
+}
+
+.help-link:hover,
+.help-link:focus-visible {
+  text-decoration: underline;
+}
+
+.help-link-missing {
+  color: var(--error);
+}
+
+.help-content code {
+  color: var(--green);
+}
+
+.help-content var {
+  color: var(--orange);
+  font-style: normal;
+}
+
+.help-example {
+  margin: 0 0 12px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  border-left: 2px solid var(--line);
+  background: var(--panel);
+  color: var(--green);
+  font-size: 12px;
+}
+
+.help-keys {
+  display: grid;
+  grid-template-columns: minmax(10ch, max-content) minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 4px;
+  margin: 0 0 12px;
+}
+
+.help-keys dt {
+  color: var(--gold);
+  font-family: inherit;
   white-space: nowrap;
+}
+
+.help-keys dd {
+  margin: 0;
+}
+
+.help-keys dd .help-tags {
+  float: right;
+  margin-left: 1ch;
 }
 
 kbd {
@@ -1720,14 +1880,19 @@ kbd {
 }
 
 @media (pointer: coarse) {
-  .code-wrap-toggle {
+  .code-wrap-toggle,
+  .code-copy {
     width: 36px;
     height: 36px;
     opacity: 1;
   }
 
+  .code-wrap-toggle {
+    right: 46px;
+  }
+
   .code-block pre {
-    padding-right: 52px;
+    padding-right: 92px;
   }
 
   .entry {
@@ -1871,33 +2036,51 @@ kbd {
   .status-left {
     overflow: hidden;
   }
+}
 
-  .help-dialog {
-    padding: 15px;
+/* Help on phones and touch screens: the help window takes the reading pane, with touch-sized actions. */
+@media (max-width: 700px) {
+  .portfolio-shell[data-help="open"] .preview-area {
+    display: none;
   }
 
-  /* Stack each binding: keys, then the description below them. */
-  .help-column,
-  .help-touch .help-group {
-    width: 100%;
+  .help-pane {
+    flex: 1 1 auto;
+    border-left: 0;
+  }
+
+  .help-scroll {
+    padding: 8px 12px 48px;
+  }
+
+  /* Keys above their description: two columns do not fit. */
+  .help-keys {
     grid-template-columns: minmax(0, 1fr);
+    row-gap: 0;
   }
 
-  .help-dialog dl {
-    row-gap: 3px;
-    font-size: 11px;
-  }
-
-  .help-dialog dt {
-    flex-wrap: wrap;
-  }
-
-  .help-dialog dt:not(:first-of-type) {
-    margin-top: 9px;
-  }
-
-  .help-dialog dd {
+  .help-keys dt {
     white-space: normal;
+  }
+
+  .help-keys dd {
+    margin: 0 0 8px 2ch;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .help-bar {
+    padding-left: 8px;
+  }
+
+  .help-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .help-link {
+    display: inline-block;
+    padding: 4px 0;
   }
 }
 
@@ -1991,7 +2174,7 @@ kbd {
   display: none;
 }
 
-/* Same input-mode switch as the help dialog (set by home.js). */
+/* Input-mode switch: home.js sets data-touch-input from the last pointer or key used. */
 :root[data-touch-input] .welcome-screen .keyboard-hints,
 :root[data-touch-input] .welcome-screen .welcome-footer:not(.touch-footer) {
   display: none;

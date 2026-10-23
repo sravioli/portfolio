@@ -136,13 +136,16 @@ describe("renderMarkdown", () => {
     assert.match(html, /id="readme-safe"/);
   });
 
-  test("wraps code blocks with a textless wrap toggle", () => {
+  test("wraps code blocks with textless wrap and copy buttons", () => {
     const html = renderMarkdown("```lua\nlocal x = 1\n```", rootEntry);
     assert.ok(
       html.startsWith('<div class="code-block"><button type="button" class="code-wrap-toggle"'),
       html,
     );
-    assert.match(html, /title="Toggle line wrap"><\/button><pre>/);
+    assert.match(
+      html,
+      /title="Toggle line wrap"><\/button><button type="button" class="code-copy" aria-label="Copy code" title="Copy code"><\/button><pre>/,
+    );
   });
 
   test("highlights code blocks at build time", () => {

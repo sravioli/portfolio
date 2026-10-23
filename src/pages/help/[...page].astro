@@ -1,0 +1,24 @@
+---
+import type { GetStaticPaths } from "astro";
+import Shell from "../../layouts/Shell.astro";
+import { loadHelp } from "../../build/help.ts";
+import { helpModel } from "../../build/model.ts";
+import { HELP_INDEX_PAGE, SITE_TITLE } from "../../lib/routes.ts";
+
+export const getStaticPaths = (async () => {
+  const help = await loadHelp();
+  return help.documents.map((document) => ({
+    params: { page: document.name === HELP_INDEX_PAGE ? undefined : document.name },
+    props: { name: document.name, title: document.title },
+  }));
+}) satisfies GetStaticPaths;
+
+const { name, title } = Astro.props;
+const help = await loadHelp();
+---
+
+<Shell
+  title={`${name}.txt | ${SITE_TITLE}`}
+  description={`${title}. Help for Simone Fidanza's portfolio.`}
+  model={helpModel(name, help.html[name])}
+/>

@@ -1,6 +1,7 @@
 ---
 import Base from "./Base.astro";
 import { documentMetrics } from "../build/documents.ts";
+import { loadHelp } from "../build/help.ts";
 import { ERROR_UI, EXPLORER_SCRIPT, renderShell, type ViewModel } from "../lib/view.ts";
 
 interface Props {
@@ -11,12 +12,14 @@ interface Props {
 
 const { title, description, model } = Astro.props;
 const metrics = JSON.stringify(await documentMetrics()).replaceAll("<", "\\u003c");
+const helpTags = JSON.stringify((await loadHelp()).tags).replaceAll("<", "\\u003c");
 ---
 
 <Base title={title} description={description}>
   <Fragment set:html={renderShell(model)} />
   <script is:inline set:html={EXPLORER_SCRIPT} />
   <script is:inline type="application/json" id="portfolio-data" set:html={metrics} />
+  <script is:inline type="application/json" id="help-tags" set:html={helpTags} />
   <Fragment set:html={ERROR_UI} />
   <script>
     import "../client/main.ts";

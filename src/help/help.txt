@@ -1,0 +1,80 @@
+*help.txt*  Help for this portfolio
+
+This site shows a portfolio of projects as a Neovim window. Each project has a
+README you can open, read, and search with Vim keys, a mouse, or touch.
+
+Close this window with `:q`, `q`, or the × button. Follow a link like
+|clipboard| by clicking it, or focus it and press CTRL-]. Go back with CTRL-T
+or the back arrow at the top.
+
+Get specific help by putting a topic after `:help`, for example `:help gx` or
+`:h clipboard`. A partial topic finds the closest match, so `:h clip` works too.
+
+==============================================================================
+QUICK START ON TOUCH                                          *help-touch-start*
+
+Tap the files icon at the top left to browse projects, or the search icon at
+the top right to find one by name. Tap a README heading in the breadcrumb to
+jump around. See |touch| for everything else.
+
+==============================================================================
+USING HELP                                                        *help-usage*
+
+`:help` {topic}                                                   *:help* *:h*
+	Open the help for {topic}. Without a topic, open this file. When no tag
+	matches, the command line shows |E149|.
+
+`:helpc[lose]`                                          *:helpclose* *:helpc*
+	Close the help window, as in Vim. `:q`, `:quit`, and `:close` do the
+	same while help is open.
+
+q            Close help, like `:q`.                                  *help-q*
+<Esc>        Close help.
+CTRL-]       Jump to the link under the cursor.                       *CTRL-]*
+CTRL-T       Go back to where you were before the last jump. CTRL-O
+             works as well, since browsers keep CTRL-T for new tabs.  *CTRL-T*
+/            Search this help file; `n` and `N` move between matches.
+             See |help-search|.
+j k          Scroll down or up a line.                         *help-scroll*
+CTRL-D CTRL-U  Scroll half a page down or up.
+gg G         Go to the top or the bottom.
+CTRL-L       Leave help open and go back to the README.
+
+On a wide screen help opens beside the README, like a Vim split. On a phone it
+covers the README until you close it. Like Vim, the buttons at the top act on
+the current window, see |touch-help-window|.
+
+E149: Sorry, no help for {topic}                                       *E149*
+	No help tag matches {topic}. Try a shorter topic, or browse the list
+	below.
+
+E73: Tag stack empty                                                     *E73*
+	There is nothing to go back to with CTRL-T.
+
+E349: No identifier under cursor                                        *E349*
+	CTRL-] needs a focused link. Press <Tab> to move between links.
+
+==============================================================================
+KEY NOTATION                                                        *notation*
+
+<leader>     The leader key, <Space> by default. Change it with
+             `:let mapleader = ","` until you reload.               *<leader>*
+CTRL-X       Hold Ctrl and press X.
+<Enter>      The Enter or Return key.
+{char}       Any single character.
+
+Help always uses Vim notation. Set |'dev'| to see it in the rest of the site
+too.
+
+==============================================================================
+TOPICS                                                           *help-topics*
+
+|touch.txt|        Using the site with a touch screen
+|navigation.txt|   The explorer, finding files, and focus
+|reading.txt|      Reading a README: scrolling, links, jumps, raw view
+|motions.txt|      Cursor motions inside a README
+|flash.txt|        Jumping anywhere on screen, like flash.nvim
+|visual.txt|       Visual mode, yanking, and text objects
+|search.txt|       Searching a README or a help file
+|commands.txt|     Commands and options
+|clipboard.txt|    Copying text and links, and clipboard errors

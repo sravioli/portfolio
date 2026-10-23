@@ -7,6 +7,27 @@ const createState = (init: Partial<NavigationState> = {}): NavigationState =>
   Object.assign(new NavigationState(), init);
 
 describe("NavigationState", () => {
+  test("openHelp shows the page defining the tag and closeHelp resets help search", () => {
+    const state = createState({ helpTags: { "help.txt": "help", "clipboard-errors": "clipboard" } });
+
+    state.openHelp("clipboard-errors");
+    assert.equal(state.isHelpOpen, true);
+    assert.equal(state.helpPage, "clipboard");
+    assert.equal(state.helpTag, "clipboard-errors");
+
+    state.openHelp(null);
+    assert.equal(state.helpPage, "help");
+    assert.equal(state.helpTag, null);
+
+    state.helpSearchQuery = "yank";
+    state.beginSearch("help");
+    assert.equal(state.searchTarget, "help");
+    state.closeHelp();
+    assert.equal(state.isHelpOpen, false);
+    assert.equal(state.helpSearchQuery, "");
+    assert.equal(state.searchTarget, "readme");
+  });
+
   test("entries unchanged expansion reuses snapshot", () => {
     const state = new NavigationState();
     const entries = state.entries;

@@ -1,0 +1,31 @@
+*search.txt*  Searching
+
+==============================================================================
+SEARCHING A README                                                    *search*
+
+/{pattern}<Enter>  Search the open README for {pattern}.                   */*
+/<Enter>     Search for the last pattern again.
+n            Go to the next match.                                       *n*
+N            Go to the previous match.                                   *N*
+`:nohl`      Clear the search highlighting, see |:nohlsearch|.
+
+Search ignores case and matches plain text, not regular expressions. The match
+position shows at the bottom right, as in `[2/7]`.
+
+E486: Pattern not found: {pattern}                                      *E486*
+	Nothing in the README matches {pattern}.
+
+E35: No previous regular expression                                      *E35*
+	`/` with nothing typed repeats the last search, and there is none yet.
+
+==============================================================================
+SEARCHING HELP                                                   *help-search*
+
+While the help window has focus, `/` searches the help file instead of the
+README. On a phone, tap the search icon at the top while help is open.
+
+/{pattern}<Enter>  Search this help file.
+n N          Next or previous match in the help file.
+
+To find a topic in every help file, use `:help` with part of its name, see
+|:help|.

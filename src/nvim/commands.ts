@@ -1,10 +1,13 @@
 import { controlNotation, leaderNotation } from "./key-notation.ts";
+import { resolveHelpTag } from "../lib/help.ts";
 import type { NavigationState } from "../lib/navigation-state.ts";
 
 export type CommandAction =
   | "None"
   | "ReturnToListing"
   | "OpenHelp"
+  | "CloseHelp"
+  | "SearchHelp"
   | "SetLeader"
   | "SetKeyboard"
   | "SetDevNotation"
@@ -18,7 +21,8 @@ export type CommandAction =
 const leaderAssignment =
   /^(?:let\s+(?:g:)?mapleader|lua\s+vim\.g\.mapleader)\s*=\s*(["'])(.*?)\1$/;
 const booleanOption = /^set?\s+(no|inv)?(keys|dev)(!)?$/;
-const help = /^h(?:elp)?(?:\s+\S.*)?$/i;
+const help = /^h(?:e(?:lp?)?)?(?:\s+(.*))?$/i;
+const helpClose = /^helpc(?:l(?:o(?:se?)?)?)?$/i;
 
 const equalsIgnoreCase = (left: string, ...candidates: string[]): boolean =>
   candidates.some((candidate) => left.toUpperCase() === candidate.toUpperCase());
@@ -32,7 +36,18 @@ const isControlOrSurrogate = (character: string): boolean => {
 export function handleCommand(state: NavigationState, commandText: string): CommandAction {
   const isSearch = commandText.startsWith("/");
   let command = isSearch ? commandText.slice(1).trim() : commandText.replace(/^:+/, "").trim();
+  const searchHelp = state.searchTarget === "help" && state.isHelpOpen;
   state.endCommand();
+  state.searchTarget = "readme";
+  if (isSearch && searchHelp) {
+    if (command.length === 0) command = state.helpSearchQuery;
+    if (command.length === 0) {
+      state.showError("E35: No previous regular expression");
+      return "Invalid";
+    }
+    state.helpSearchQuery = command;
+    return "SearchHelp";
+  }
   if (isSearch) {
     if (command.length === 0) command = state.searchQuery;
     if (command.length === 0) {
@@ -61,13 +76,27 @@ export function handleCommand(state: NavigationState, commandText: string): Comm
     return "Invalid";
   }
 
+  // Like Vim, :q in the help window closes the help window.
+  if (helpClose.test(command) || (state.isHelpOpen && equalsIgnoreCase(command, "q", "quit", "clo", "close"))) {
+    if (!state.isHelpOpen) return "None";
+    state.closeHelp();
+    return "CloseHelp";
+  }
+
   if (equalsIgnoreCase(command, "Ex", "Explore", "q")) {
     state.goToParent();
     return "ReturnToListing";
   }
 
-  if (help.test(command)) {
-    state.isHelpOpen = true;
+  const helpMatch = help.exec(command);
+  if (helpMatch) {
+    const topic = (helpMatch[1] ?? "").trim();
+    const tag = resolveHelpTag(state.helpTags, topic);
+    if (tag === null) {
+      state.showError(`E149: Sorry, no help for ${topic}`);
+      return "Invalid";
+    }
+    state.openHelp(tag);
     return "OpenHelp";
   }
 

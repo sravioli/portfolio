@@ -22,6 +22,14 @@ const baseModel = (state: NavigationState): ViewModel => ({
 
 export const welcomeModel = (): ViewModel => baseModel(new NavigationState());
 
+/** Server-rendered help page: the welcome screen with the help file open beside it. */
+export function helpModel(page: string, html: string): ViewModel {
+  const state = new NavigationState();
+  state.isHelpOpen = true;
+  state.helpPage = page;
+  return { ...baseModel(state), helpHtml: html };
+}
+
 /** Server-rendered view of an open document, matching what the client shows after loading it. */
 export function documentModel(document: PortfolioDocument): ViewModel {
   const state = new NavigationState();

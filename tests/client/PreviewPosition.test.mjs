@@ -46,8 +46,12 @@ test("position reports reuse the heading index and reset it across preview lifec
     querySelectorAll: () => [],
   };
   const stub = `
+    export function createCursor() { return new Proxy({}, { get: () => () => false }); }
     export function setNavigator() {}
     export function setMoveListener(callback) { globalThis.previewPositionFixture.setMove(callback); }
+    export function setModeListener() {}
+    export function endVisual() {}
+    export function visualMode() { return null; }
     export function refresh() {}
     export function sync() {}
     export function position() { return { line: 5, column: 2, top: 150 }; }

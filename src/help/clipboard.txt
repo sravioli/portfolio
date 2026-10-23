@@ -1,0 +1,50 @@
+*clipboard.txt*  Copying text and links
+
+The portfolio copies through the browser clipboard, which plays the part of
+the "+ register in Neovim. There is no other register.
+
+==============================================================================
+COPYING                                                *clipboard* *quote+*
+
+CTRL-C       With nothing selected, copy the Markdown source of the open
+             README. The command line shows how many lines were yanked.
+             In Visual mode, copy the selection instead.          *CTRL-C*
+y yy v V     Yank text with Vim keys, or select it with the cursor in
+             Visual mode first. See |yank| and |visual-mode|.
+Selection    Text selected with the mouse becomes a Visual selection; copy
+             it with `y` or CTRL-C. A finger selects text the browser way,
+             so copy it with the menu. See |visual-mouse|.
+                                                        *clipboard-selection*
+Copy code    The copy button at the top right of a code block copies its
+             code. It shows a check mark once the code is copied.
+                                                                   *code-copy*
+Copy link    The button above the README on narrow screens copies its
+             address.                                             *copy-link*
+
+When copying works, the command line confirms it: >
+	120 lines yanked into "+
+	Copied link: https://…
+<
+
+The page address always links to the open README, so the browser share menu
+works too.
+
+==============================================================================
+WHEN COPYING FAILS                                          *clipboard-errors*
+
+clipboard: Browser denied access                            *clipboard-denied*
+	The browser refused to write to the clipboard. The common causes are
+	below.
+
+Permission   The site, or the browser itself, blocks clipboard access. Allow
+             it in the site settings, usually under the padlock in the
+             address bar.                            *clipboard-permission*
+Embedded     A page shown inside another site, in a frame, may not copy
+             unless the outer page allows it. Open the site on its own.
+                                                         *clipboard-iframe*
+Focus        Copying only works while the page has focus. Click the README
+             and try again.                                *clipboard-focus*
+
+If nothing helps, select the text and copy it with the browser menu, or open
+the raw view with |p| and select from there. To share a README, copy the
+address bar instead of using |copy-link|.

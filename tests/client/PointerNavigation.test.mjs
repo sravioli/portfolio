@@ -5,8 +5,12 @@ import { createDomFixture, TestElement } from "./helpers/dom-fixture.mjs";
 import * as viewer from "../../src/client/js/image-viewer.js";
 
 const cursorStub = `
+  export function createCursor() { return new Proxy({}, { get: () => () => false }); }
   export function setNavigator() {}
   export function setMoveListener() {}
+  export function setModeListener() {}
+  export function endVisual() {}
+  export function visualMode() { return null; }
   export function dispose() {}
   export function placeAt(...args) { globalThis.pointerFixture.placements.push(args); }
   export function imageUnderCursor() { return globalThis.pointerFixture.image; }
@@ -143,6 +147,45 @@ test("modified clicks and non-primary clicks retain native behavior", async (t) 
     assert.equal((await f.click(new f.Image(), extras)).defaultPrevented, false);
     assert.equal(viewer.isOpen(), false);
   }
+  assert.equal(f.state.placements.length, 0);
+});
+
+test("the code copy button copies the code and reports it like a yank", async (t) => {
+  const f = fixture(t);
+  f.document.querySelector(".preview-scroll").focus = () => {};
+  const copied = [];
+  let allowed = true;
+  Object.defineProperty(globalThis.navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: async (text) => {
+        if (!allowed) throw new Error("denied");
+        copied.push(text);
+      },
+    },
+  });
+  t.after(() => delete globalThis.navigator.clipboard);
+  const pre = new TestElement("pre");
+  pre.textContent = "local a = 1\nlocal b = 2\nreturn a + b\n";
+  const block = new TestElement("div");
+  block.querySelector = (selector) => (selector === "pre" ? pre : null);
+  const button = new TestElement("button");
+  button.removeAttribute = (name) => delete button.attributes[name];
+  button.closest = (selector) =>
+    selector === ".code-copy" ? button : selector === ".code-block" ? block : null;
+
+  assert.equal((await f.click(button)).defaultPrevented, true);
+  assert.deepEqual(copied, ["local a = 1\nlocal b = 2\nreturn a + b"]);
+  assert.deepEqual(f.calls.at(-1), ["OnYank", 3, true]);
+  assert.equal(button.getAttribute("data-copied"), "");
+  assert.equal(button.getAttribute("aria-label"), "Copied");
+  clearTimeout(Number(button.dataset.copiedTimer));
+
+  allowed = false;
+  button.removeAttribute("data-copied");
+  await f.click(button);
+  assert.deepEqual(f.calls.at(-1), ["OnYank", 3, false]);
+  assert.equal(button.getAttribute("data-copied"), null);
   assert.equal(f.state.placements.length, 0);
 });
 

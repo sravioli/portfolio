@@ -4,6 +4,7 @@ import * as pick from "../nvim/pick-menu.js";
 import * as viewer from "./js/image-viewer.js";
 import * as whichKey from "../nvim/which-key.js";
 import { createMotionParser, isModifierKey } from "../nvim/vim-motions.js";
+import { createFlash } from "../nvim/flash.js";
 import { PREFIX_TIMEOUT_MS } from "../nvim/keyboard.js";
 import {
   createHeadingIndex,
@@ -19,6 +20,11 @@ const ON_INTERNAL_REPOSITORY = "OnInternalRepositoryLink";
 const ON_MISSING_ANCHOR = "OnMissingAnchor";
 const ON_LAYOUT_CHANGED = "OnLayoutChanged";
 const ON_DRAWER_DISMISSED = "OnDrawerDismissed";
+const ON_HELP_KEY = "OnHelpKey";
+const ON_HELP_POSITION = "OnHelpPosition";
+const ON_VISUAL_MODE = "OnVisualMode";
+const ON_YANK = "OnYank";
+const ON_FLASH = "OnFlashPrompt";
 // Keep in sync with the narrow-layout media query in app.css.
 const NARROW_QUERY = "(max-width: 700px)";
 
@@ -36,7 +42,9 @@ let leaderSuffix = "";
 let pendingBracket = "";
 let bracketPressedAt = 0;
 let whichKeyTimer = 0;
-const motions = createMotionParser();
+const motions = createMotionParser({
+  visual: () => !!cursor.visualMode(),
+});
 const POSITION_REPORT_INTERVAL = 100;
 let headingRoot;
 let headingIndex;
@@ -120,15 +128,6 @@ function resetBracket() {
   motions.reset();
 }
 
-export function setHelpOpen(dialog, open) {
-  if (open && !dialog.open) {
-    // Keyboard users see every binding; touch users start with them collapsed.
-    const keys = dialog.querySelector?.(".help-keys");
-    if (keys) keys.open = !touchInput;
-    dialog.showModal();
-  } else if (!open && dialog.open) dialog.close();
-}
-
 let touchInput = false;
 
 function setInputMode(touch) {
@@ -153,36 +152,350 @@ function isTextEntry(target) {
   );
 }
 
-let helpPendingG = 0;
+// The help window has its own cursor and motions, so moving in help keeps the README position.
+const helpCursor = cursor.createCursor({
+  viewport: ".help-scroll",
+  root: ".help-content",
+  headings: (root) => [...root.querySelectorAll("h1, h2, h3")],
+  documentOf: (element) => element.dataset.helpPage ?? "",
+});
+const helpMotions = createMotionParser({
+  visual: () => !!helpCursor.visualMode(),
+});
+let helpFrame = 0;
 
-function scrollHelp(dialog, event, ctrlOnly) {
-  const key = ctrlOnly ? `<C-${event.key.toLowerCase()}>` : event.key;
-  const step = { j: 1, ArrowDown: 1, k: -1, ArrowUp: -1 }[key];
-  const page = { "<C-d>": 1, "<C-u>": -1 }[key];
-  if (key !== "g") helpPendingG = 0;
-  if (step) dialog.scrollBy({ top: step * 48, behavior: "instant" });
-  else if (page)
-    dialog.scrollBy({
-      top: (page * dialog.clientHeight) / 2,
-      behavior: "instant",
+/** Copies yanked text to the clipboard and lets the app report it like Vim; returns whether it was copied. */
+async function reportYank(yanked) {
+  if (!yanked) return false;
+  const ok = await copyText(yanked.text);
+  try {
+    await dotNetRef?.invokeMethodAsync(ON_YANK, yanked.lines, ok);
+  } catch {
+    // The component can be disposed while a yank is in flight.
+  }
+  return ok;
+}
+
+function endAllVisual() {
+  cursor.endVisual();
+  helpCursor.endVisual();
+}
+
+// Set when a mouse drag became a Visual selection, so the click that ends the drag keeps it.
+let mouseSelected = false;
+
+function onMouseDown() {
+  mouseSelected = false;
+  flash.cancel();
+  flash.hideChar();
+  motions.reset();
+  helpMotions.reset();
+}
+
+// flash.nvim (`:help flash`): `s` jumps to a labelled match in any window on screen; f and t highlight targets.
+const flash = createFlash({
+  prompt(text) {
+    void dotNetRef?.invokeMethodAsync(ON_FLASH, text).catch(() => {
+      // The component can be disposed while the prompt changes.
     });
-  else if (key === "G")
-    dialog.scrollTo({ top: dialog.scrollHeight, behavior: "instant" });
-  else if (key === "g") {
-    if (helpPendingG && performance.now() - helpPendingG < PREFIX_TIMEOUT_MS) {
-      helpPendingG = 0;
-      dialog.scrollTo({ top: 0, behavior: "instant" });
-    } else {
-      helpPendingG = performance.now();
+  },
+});
+const readmeWindow = {
+  cursor,
+  viewport: () =>
+    /** @type {HTMLElement | null} */ (document.querySelector(".preview-scroll")),
+};
+const helpWindow = {
+  cursor: helpCursor,
+  viewport: () =>
+    /** @type {HTMLElement | null} */ (document.querySelector(".help-scroll")),
+};
+/** @type {{ windows: (typeof readmeWindow)[], operator: boolean } | null} */
+let flashJob = null;
+
+/** Starts a flash jump from the README or help; other windows join unless an operator or Visual mode is active. */
+function startFlash(result, inHelp) {
+  const [own, other] = inHelp ? [helpWindow, readmeWindow] : [readmeWindow, helpWindow];
+  const windows = [own];
+  const otherShown = helpOpen() && !narrowMedia?.matches;
+  if (!result.operator && !own.cursor.visualMode() && otherShown) windows.push(other);
+  flash.hideChar();
+  flashJob = { windows, operator: !!result.operator };
+  flash.start(windows);
+}
+
+async function finishFlash(result) {
+  const job = flashJob;
+  if (result.status === "pending") return;
+  flashJob = null;
+  if (result.status !== "jump" || !job) return;
+  const window = job.windows[result.window];
+  const options = { target: result.position };
+  if (job.operator) {
+    await reportYank(window.cursor.yank("flashJump", 1, options));
+    return;
+  }
+  if (result.window !== 0) {
+    job.windows[0].cursor.endVisual();
+    window.viewport()?.focus({ preventScroll: true });
+  }
+  if (!window.cursor.motion("flashJump", 1, options) && window.cursor.placeOn(null))
+    window.cursor.motion("flashJump", 1, options);
+}
+
+/** Shows flash's char-mode highlights while f, F, t, or T can be repeated in a window. */
+function syncCharFlash(parser, window) {
+  if (flash.active()) return;
+  if (parser.charActive()) flash.showChar(window);
+  else flash.hideChar();
+}
+
+/**
+ * Dragging, double-clicking, or triple-clicking text in the README or help starts Visual mode like Vim with
+ * 'mouse' set: the browser selection becomes the cursor's selection, and a triple-click selects lines.
+ * Touch keeps the browser's selection so its handles still work.
+ */
+function onMouseUp(event) {
+  if (event.button !== 0 || touchInput) return;
+  const selected = window.getSelection?.();
+  if (!selected || selected.isCollapsed || !selected.rangeCount) return;
+  const range = selected.getRangeAt(0);
+  const container = range.commonAncestorContainer;
+  const element =
+    container instanceof Element ? container : container.parentElement;
+  const inHelp = !!element?.closest(".help-pane");
+  const [target, other] = inHelp ? [helpCursor, cursor] : [cursor, helpCursor];
+  const forward =
+    selected.anchorNode === range.startContainer &&
+    selected.anchorOffset === range.startOffset;
+  other.endVisual();
+  if (!target.selectRange(range, forward, event.detail >= 3 ? "line" : "char"))
+    return;
+  selected.removeAllRanges();
+  mouseSelected = true;
+  /** @type {HTMLElement | null} */ (
+    document.querySelector(inHelp ? ".help-scroll" : ".preview-scroll")
+  )?.focus({ preventScroll: true });
+}
+
+/**
+ * Runs the `y` operator, Visual-mode keys, and text objects on a cursor; returns whether the result was one
+ * of them. Only one window has a Visual selection at a time, like Vim.
+ */
+async function runEdit(target, other, result) {
+  const options = { hasCount: result.hasCount, argument: result.argument };
+  if (result.status === "operator") {
+    await reportYank(target.yank(result.motion, result.count, options));
+    return true;
+  }
+  if (result.status === "motion" && result.motion === "textObject") {
+    target.selectObject(result.argument, result.count);
+    return true;
+  }
+  if (result.status !== "command") return false;
+  switch (result.command) {
+    case "visualChar":
+    case "visualLine":
+      other.endVisual();
+      target.toggleVisual(result.command === "visualChar" ? "char" : "line");
+      break;
+    case "reselectVisual":
+      other.endVisual();
+      target.reselectVisual();
+      break;
+    case "swapVisual":
+      target.swapVisual();
+      break;
+    case "yank":
+    case "yankLines":
+      await reportYank(
+        target.yankVisual(result.command === "yankLines" || undefined),
+      );
+      break;
+  }
+  return true;
+}
+
+function onVisualMode(kind, inHelp) {
+  void dotNetRef?.invokeMethodAsync(ON_VISUAL_MODE, kind, inHelp).catch(() => {
+    // The component can be disposed while the mode changes.
+  });
+}
+
+function onHelpScroll() {
+  if (helpFrame) return;
+  helpFrame = requestAnimationFrame(() => {
+    helpFrame = 0;
+    helpCursor.sync();
+    void reportHelpPosition();
+  });
+}
+
+/** Vim's scroll position of a window: All, Top, Bot, or a percentage. */
+function scrollPercent(viewport) {
+  const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+  if (maxScroll === 0) return "All";
+  if (viewport.scrollTop <= 1) return "Top";
+  if (viewport.scrollTop >= maxScroll - 1) return "Bot";
+  return `${Math.round((viewport.scrollTop / maxScroll) * 100)}%`;
+}
+
+/** Reports the help cursor's place for the statusline while help is the current window. */
+async function reportHelpPosition() {
+  const viewport = /** @type {HTMLElement | null} */ (
+    document.querySelector(".help-scroll")
+  );
+  const article = /** @type {HTMLElement | null} */ (
+    viewport?.querySelector(".help-content") ?? null
+  );
+  if (!viewport || !article || !dotNetRef) return;
+  const total = Math.max(1, Number(article.dataset.totalLines || 1));
+  const cursorPosition = helpCursor.position();
+  try {
+    await dotNetRef.invokeMethodAsync(
+      ON_HELP_POSITION,
+      Math.min(total, Math.max(1, cursorPosition?.line ?? 1)),
+      cursorPosition?.column ?? 1,
+      total,
+      scrollPercent(viewport),
+      Number(article.dataset.bytes || 0),
+      article.dataset.helpPage ?? "",
+    );
+  } catch {
+    // The component can be disposed while a scroll callback is in flight.
+  }
+}
+
+async function runHelpMotion(result) {
+  await runHelpResult(result);
+  syncCharFlash(helpMotions, helpWindow);
+}
+
+async function runHelpResult(result) {
+  if (result.status === "flash") {
+    startFlash(result, true);
+    return;
+  }
+  if (await runEdit(helpCursor, cursor, result)) return;
+  if (result.status !== "motion") return;
+  if (result.motion === "searchNext" || result.motion === "searchPrevious") {
+    await invokeHelp(
+      result.motion === "searchNext" ? "next-match" : "previous-match",
+    );
+    return;
+  }
+  if (result.motion === "followLink") {
+    helpCursor.followLink();
+    return;
+  }
+  helpCursor.motion(result.motion, result.count, {
+    hasCount: result.hasCount,
+    argument: result.argument,
+  });
+}
+
+const helpOpen = () =>
+  /** @type {HTMLElement | null} */ (document.querySelector(".portfolio-shell"))
+    ?.dataset.help === "open";
+
+/**
+ * Whether a key belongs to the help window: focus is inside it, it covers the README on a narrow screen,
+ * or nothing else has focus. Keys from the README or explorer beside it keep their usual meaning.
+ */
+function helpTarget(target) {
+  if (!helpOpen()) return false;
+  if (target instanceof Element && target.closest(".help-pane")) return true;
+  if (narrowMedia?.matches) return true;
+  return !(target instanceof Element) || target === document.body || target === document.documentElement;
+}
+
+async function invokeHelp(action) {
+  try {
+    await dotNetRef.invokeMethodAsync(ON_HELP_KEY, action);
+  } catch {
+    // The component can be disposed while a key callback is in flight.
+  }
+}
+
+/** Keys of the help window; returns whether the key was used. */
+async function onHelpKey(event, ctrlOnly) {
+  const key = event.key;
+  // f/t/m/' take any character, including q, : and /, as their argument.
+  if (!ctrlOnly && keyboardEnabled && helpMotions.awaitsArgument()) {
+    await runHelpMotion(helpMotions.feed(key));
+    return true;
+  }
+  if (key === "Escape" && (helpMotions.isPending() || helpMotions.charActive())) {
+    helpMotions.reset();
+    flash.hideChar();
+    return true;
+  }
+  if (key === "Escape" && helpCursor.visualMode()) {
+    helpCursor.endVisual();
+    return true;
+  }
+  if (key === "Escape" || (key === "q" && !ctrlOnly && keyboardEnabled)) {
+    helpMotions.reset();
+    helpCursor.endVisual();
+    await invokeHelp("close");
+    return true;
+  }
+  if (!ctrlOnly && (key === ":" || key === "/")) {
+    helpMotions.reset();
+    if (key === ":") {
+      helpCursor.endVisual();
+      await invokeKey(":", false);
     }
-  } else {
+    else await invokeHelp("search");
+    return true;
+  }
+  if (!keyboardEnabled) return false;
+  if (ctrlOnly) {
+    helpMotions.reset();
+    const letter = key.toLowerCase();
+    if (letter === "c" && helpCursor.visualMode()) {
+      await reportYank(helpCursor.yankVisual());
+      return true;
+    }
+    if (letter === "d" || letter === "u") {
+      helpCursor.move(letter === "d" ? "halfDown" : "halfUp");
+      return true;
+    }
+    if (key === "]") {
+      const link = document.activeElement?.closest?.(".help-pane a[data-help-tag]");
+      if (link) link.click();
+      else if (!helpCursor.followLink()) await invokeHelp("no-identifier");
+      return true;
+    }
+    if (letter === "t" || letter === "o") {
+      await invokeHelp("back");
+      return true;
+    }
+    if (letter === "l") {
+      helpCursor.endVisual();
+      await invokeHelp("leave");
+      return true;
+    }
     return false;
   }
+  const result = helpMotions.feed(key);
+  if (result.status === "none") return false;
+  await runHelpMotion(result);
   return true;
 }
 
 async function onKeyDown(event) {
   if (isModifierKey(event.key)) return;
+  if (flash.active()) {
+    event.preventDefault();
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      flash.cancel();
+      flashJob = null;
+      return;
+    }
+    await finishFlash(flash.key(event.key));
+    return;
+  }
   const ctrlOnly =
     event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
   if (
@@ -217,23 +530,20 @@ async function onKeyDown(event) {
     );
     return;
   }
-  const helpDialog = document.querySelector("dialog.help-dialog[open]");
-  const helpOpen = helpDialog !== null;
-  if (helpOpen && keyboardEnabled) {
+  const inHelp = helpTarget(event.target);
+  if (inHelp && !isTextEntry(event.target)) {
     resetLeader();
     resetBracket();
-    if (scrollHelp(helpDialog, event, ctrlOnly)) {
-      event.preventDefault();
+    // Enter and Space keep activating the focused link or button.
+    if (
+      !ctrlOnly &&
+      ["Enter", " ", "Spacebar", "Tab"].includes(event.key)
+    )
       return;
-    }
-    if (event.key === "q" && !ctrlOnly) {
-      event.preventDefault();
-      await invokeKey("Escape", false);
-      return;
-    }
+    if (await onHelpKey(event, ctrlOnly)) event.preventDefault();
+    return;
   }
   if (
-    (helpOpen && event.key !== "Escape") ||
     isTextEntry(event.target) ||
     (event.target instanceof Element && event.target.closest(".file-finder"))
   ) {
@@ -268,12 +578,18 @@ async function onKeyDown(event) {
     resetBracket();
     return;
   }
-  const motionsActive = reading && !entryButton && !helpOpen;
+  const motionsActive = reading && !entryButton;
   if (ctrlOnly) {
     resetLeader();
     resetBracket();
     const letter = key.toLowerCase();
     if (!CTRL_MAPS.includes(letter)) return;
+    // CTRL-C copies the Visual selection; otherwise it copies the whole document.
+    if (letter === "c" && cursor.visualMode()) {
+      event.preventDefault();
+      await reportYank(cursor.yankVisual());
+      return;
+    }
     if (letter === "c" && (!reading || window.getSelection?.()?.toString()))
       return;
     if (letter !== "h" && letter !== "p" && !reading) return;
@@ -284,7 +600,7 @@ async function onKeyDown(event) {
     resetLeader();
     await runMotion(motions.feed(key));
     return;
-  } else if (!helpOpen && leaderPending()) {
+  } else if (leaderPending()) {
     event.preventDefault();
     if (key === "Escape") {
       resetLeader();
@@ -299,7 +615,7 @@ async function onKeyDown(event) {
     key = mapped;
   } else {
     resetLeader();
-    if (!helpOpen && key === leader) {
+    if (key === leader) {
       event.preventDefault();
       resetBracket();
       if (!event.repeat) {
@@ -307,6 +623,14 @@ async function onKeyDown(event) {
         scheduleWhichKey();
       }
       return;
+    }
+    if (motionsActive && cursor.visualMode() && (key === "Escape" || key === ":")) {
+      motions.reset();
+      cursor.endVisual();
+      if (key === "Escape") {
+        event.preventDefault();
+        return;
+      }
     }
     if (motionsActive) {
       const result = motions.feed(key);
@@ -338,7 +662,7 @@ async function onKeyDown(event) {
     )?.dataset.welcome === "true";
   const handled =
     key === "Escape"
-      ? helpOpen
+      ? helpOpen()
       : key.startsWith("<") ||
         key === "]]" ||
         key === "[[" ||
@@ -367,6 +691,16 @@ async function onKeyDown(event) {
 }
 
 async function runMotion(result) {
+  await runReadmeResult(result);
+  syncCharFlash(motions, readmeWindow);
+}
+
+async function runReadmeResult(result) {
+  if (result.status === "flash") {
+    startFlash(result, false);
+    return;
+  }
+  if (await runEdit(cursor, helpCursor, result)) return;
   if (result.status !== "motion") return;
   if (result.motion === "followLink") {
     await invokeKey("gx", false);
@@ -414,15 +748,7 @@ async function reportPosition() {
     ),
   );
   const column = cursorPosition?.column ?? 1;
-  const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-  const percent =
-    maxScroll === 0
-      ? "All"
-      : viewport.scrollTop <= 1
-        ? "Top"
-        : viewport.scrollTop >= maxScroll - 1
-          ? "Bot"
-          : `${Math.round((viewport.scrollTop / maxScroll) * 100)}%`;
+  const percent = scrollPercent(viewport);
   if (headingRoot !== article) {
     headingRoot = article;
     headingIndex = article ? createHeadingIndex(article) : null;
@@ -453,6 +779,7 @@ function schedulePosition() {
   positionFrame = requestAnimationFrame(() => {
     positionFrame = 0;
     cursor.sync();
+    helpCursor.sync();
     const delay =
       POSITION_REPORT_INTERVAL - (performance.now() - lastPositionReport);
     if (delay > 0) {
@@ -482,9 +809,27 @@ async function onClick(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (whichKey.isOpen()) resetLeader();
   if (pick.isActive()) pick.cancel();
+  if (mouseSelected) {
+    mouseSelected = false;
+    return;
+  }
+  // A click ends Visual mode and places the cursor, like Vim with 'mouse' set.
+  if (event.detail > 0) endAllVisual();
+  // The app routes help links and actions itself.
+  if (target?.closest(".help-pane")) {
+    if (event.detail > 0 && target.closest(".help-content"))
+      helpCursor.placeAt(event.clientX, event.clientY, target);
+    return;
+  }
   if (target?.closest(".code-wrap-toggle")) {
     event.preventDefault();
     toggleCodeWrap();
+    return;
+  }
+  const codeCopy = target?.closest(".code-copy");
+  if (codeCopy) {
+    event.preventDefault();
+    await copyCodeBlock(codeCopy);
     return;
   }
   const crumb = target?.closest(".breadcrumb [data-pick-segment]");
@@ -583,6 +928,9 @@ export function initialize(reference, enabled, configuredLeader) {
     }
   });
   cursor.setMoveListener(schedulePosition);
+  helpCursor.setMoveListener(onHelpScroll);
+  cursor.setModeListener((kind) => onVisualMode(kind, false));
+  helpCursor.setModeListener((kind) => onVisualMode(kind, true));
   pick.configure({
     loadMenu: async (repository) => {
       try {
@@ -606,11 +954,16 @@ export function initialize(reference, enabled, configuredLeader) {
   });
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("click", onClick);
+  document.addEventListener("mousedown", onMouseDown, true);
+  document.addEventListener("mouseup", onMouseUp);
   applyCodeWrap(readCodeWrap());
   document.addEventListener("error", onImageError, true);
   document
     .querySelector(".preview-scroll")
     ?.addEventListener("scroll", schedulePosition, { passive: true });
+  document
+    .querySelector(".help-scroll")
+    ?.addEventListener("scroll", onHelpScroll, { passive: true });
   window.addEventListener("resize", schedulePosition);
   document.addEventListener("load", onContentLoad, true);
   document.addEventListener("toggle", onDisclosureToggle, true);
@@ -651,6 +1004,31 @@ function applyCodeWrap(wrap) {
     ".code-wrap-toggle",
   ) ?? [])
     toggle.setAttribute("aria-pressed", String(wrap));
+}
+
+const CODE_COPIED_MS = 1500;
+
+/**
+ * The copy button of a code block copies its code without the final newline. Like a yank, the command line
+ * reports more than two lines or a denied clipboard, and the button shows a check mark for a moment.
+ */
+async function copyCodeBlock(button) {
+  const code = button.closest(".code-block")?.querySelector("pre");
+  if (!code) return;
+  const text = code.textContent.replace(/\n$/, "");
+  const ok = await reportYank({ text, lines: text.split("\n").length, linewise: false });
+  focusPreview();
+  if (!ok) return;
+  clearTimeout(Number(button.dataset.copiedTimer));
+  button.setAttribute("data-copied", "");
+  button.setAttribute("aria-label", "Copied");
+  button.dataset.copiedTimer = String(
+    setTimeout(() => {
+      button.removeAttribute("data-copied");
+      button.removeAttribute("data-copied-timer");
+      button.setAttribute("aria-label", "Copy code");
+    }, CODE_COPIED_MS),
+  );
 }
 
 function toggleCodeWrap() {
@@ -759,6 +1137,39 @@ export function moveSearchMatch(direction, count = 1) {
   return index;
 }
 
+const helpSearch = readmeSearch.createSearch(".help-content");
+
+/** Highlights `query` in the help window; returns the match count. */
+export function searchHelp(query) {
+  const count = helpSearch.search(query);
+  helpCursor.invalidate();
+  if (count > 0) helpCursor.jumpToElement(helpSearch.activeMatch());
+  return count;
+}
+
+/** Moves to the next or previous help match; returns `{ index, count }` with `index` from 1. */
+export function moveHelpMatch(direction) {
+  helpSearch.move(direction);
+  helpCursor.jumpToElement(helpSearch.activeMatch());
+  return helpSearch.position();
+}
+
+export function clearHelpSearch() {
+  helpSearch.clear();
+  helpCursor.invalidate();
+}
+
+/** Re-reads the help text after the help window shows another file. */
+export function refreshHelpCursor() {
+  helpCursor.refresh();
+  onHelpScroll();
+}
+
+/** Puts the help cursor on `element`, such as the tag a `:help` jumped to, or near the top of the view. */
+export function placeHelpCursor(element) {
+  helpCursor.placeOn(element);
+}
+
 export function setCommandCaretToEnd() {
   requestAnimationFrame(() => {
     const input = /** @type {HTMLInputElement | null} */ (
@@ -833,10 +1244,16 @@ export function dispose() {
   viewer.close();
   document.removeEventListener("keydown", onKeyDown);
   document.removeEventListener("click", onClick);
+  document.removeEventListener("mousedown", onMouseDown, true);
+  document.removeEventListener("mouseup", onMouseUp);
+  mouseSelected = false;
   document.removeEventListener("error", onImageError, true);
   document
     .querySelector(".preview-scroll")
     ?.removeEventListener("scroll", schedulePosition);
+  document
+    .querySelector(".help-scroll")
+    ?.removeEventListener("scroll", onHelpScroll);
   window.removeEventListener("resize", schedulePosition);
   document.removeEventListener("load", onContentLoad, true);
   document.removeEventListener("toggle", onDisclosureToggle, true);
@@ -847,7 +1264,15 @@ export function dispose() {
   lastPositionReport = 0;
   headingRoot = null;
   headingIndex = null;
+  flash.cancel();
+  flash.hideChar();
+  flashJob = null;
+  motions.reset();
   cursor.dispose();
+  helpCursor.dispose();
+  helpMotions.reset();
+  if (helpFrame) cancelAnimationFrame(helpFrame);
+  helpFrame = 0;
   narrowMedia?.removeEventListener("change", onLayoutChange);
   window.removeEventListener("popstate", onPopState);
   document.removeEventListener("pointerdown", onPointerInput, true);

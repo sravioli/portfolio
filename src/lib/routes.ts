@@ -45,6 +45,52 @@ export function pageDescription(entry: PortfolioEntry | undefined): string {
   return `${entry.name}: ${description}. Part of Simone Fidanza's portfolio.`;
 }
 
+/** Help file shown by a bare `:help`; its page lives at `/help/`. */
+export const HELP_INDEX_PAGE = "help";
+
+/** Element id of a help tag; also the URL fragment that links to it. */
+export const helpAnchor = (tag: string): string => `help-${tag}`;
+
+/** Pretty URL of a help file: `/help/` for the index, otherwise `/help/{page}/`. */
+export const helpPageUrl = (page: string): string =>
+  siteUrl(page === HELP_INDEX_PAGE ? "help/" : `help/${encodeURIComponent(page)}/`);
+
+/** URL of a help tag inside its help file. */
+export const helpTagUrl = (page: string, tag: string): string =>
+  `${helpPageUrl(page)}#${encodeURIComponent(helpAnchor(tag))}`;
+
+export const helpFragmentUrl = (page: string): string =>
+  siteUrl(`help-fragments/${encodeURIComponent(page)}.html`);
+
+/** Help file of a pathname, e.g. `clipboard` for `/help/clipboard/`; `null` when it is not a help page. */
+export function helpPageFromPath(pathname: string, basePath = BASE_PATH): string | null {
+  const base = basePath.replace(/\/$/, "");
+  if (base) {
+    if (!pathname.startsWith(`${base}/`)) return null;
+    pathname = pathname.slice(base.length);
+  }
+  const match = /^\/help(?:\/([^/]+))?\/?$/i.exec(pathname);
+  if (match === null) return null;
+  if (match[1] === undefined) return HELP_INDEX_PAGE;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+/** Help tag named by a URL fragment such as `#help-clipboard`; `null` when it names none. */
+export function helpTagFromHash(hash: string): string | null {
+  let fragment = hash.replace(/^#/, "");
+  try {
+    fragment = decodeURIComponent(fragment);
+  } catch {
+    // Keep the fragment as written.
+  }
+  const prefix = helpAnchor("");
+  return fragment.startsWith(prefix) && fragment.length > prefix.length ? fragment.slice(prefix.length) : null;
+}
+
 /** Resolves a pathname to a document; `undefined` means the welcome screen, `null` means unknown. */
 export function entryFromPath(pathname: string, basePath = BASE_PATH): PortfolioEntry | null | undefined {
   const base = basePath.replace(/\/$/, "");

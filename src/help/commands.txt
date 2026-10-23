@@ -1,0 +1,49 @@
+*commands.txt*  Commands and options
+
+Press `:` to open the command line at the bottom, type a command, and press
+<Enter>. <Esc> cancels. On touch, tap the command line instead.
+
+<Up> <Down>  Browse earlier commands.                          *cmdline-history*
+
+==============================================================================
+COMMANDS                                                       *ex-commands*
+
+`:help` {topic}  Open help, see |:help|.
+`:helpclose`     Close help, see |:helpclose|.
+`:Ex` `:q`       Return to the listing; `:Explore` too.
+                                                          *:Ex* *:q* *:Explore*
+`:e` {path}      Open the README of a project by its path.      *:edit* *:e*
+`:e`             Reload the open README.
+`:nohl`          Clear search highlighting.               *:nohlsearch* *:nohl*
+`:NvimTreeToggle`  Show or hide the file explorer.          *:NvimTreeToggle*
+`:NvimTreeOpen`  Show the file explorer.                       *:NvimTreeOpen*
+`:NvimTreeClose`  Hide the file explorer.                     *:NvimTreeClose*
+
+E492: Not an editor command: {command}                                  *E492*
+	The command does not exist here. See the list above.
+
+E484: Can't open file {path}                                            *E484*
+	No project has that path, or its README failed to load.
+
+E32: No file name                                                        *E32*
+	`:e` without a path needs an open README to reload.
+
+==============================================================================
+OPTIONS                                                              *options*
+
+`:set keys`      Turn the keymaps on.                                 *'keys'*
+`:set nokeys`    Turn the keymaps off; only `:` and `/` still work. The
+                 keyboard button in the tab bar does the same.
+`:set dev`       Show keys in Vim notation, as in `<leader>ff`.        *'dev'*
+`:set nodev`     Show keys in plain words, as in "Space then f f".
+`:set keys!`     Toggle an option; `:set invkeys` works too.
+
+==============================================================================
+LEADER                                                            *mapleader*
+
+`:let mapleader = ","`  Use `,` as the leader until you reload. Any single key
+                 works, as do `"<Space>"` and `"<Bslash>"`. `:lua vim.g.mapleader = ","`
+                 does the same.
+
+E474: Invalid argument: mapleader must be a single key                  *E474*
+	The leader must be one key.

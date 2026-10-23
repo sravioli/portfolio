@@ -349,7 +349,7 @@ function markInternalRepositoryLinks(tree: HastRoot): void {
   });
 }
 
-// Added after sanitizing; the button has no text so the reading cursor never lands on it.
+// Added after sanitizing; the buttons have no text so the reading cursor never lands on them.
 function addCodeWrapToggles(tree: HastRoot): void {
   visit(tree, "element", (pre: Element, index, parent) => {
     if (pre.tagName !== "pre" || parent === undefined || index === undefined) return;
@@ -360,7 +360,13 @@ function addCodeWrapToggles(tree: HastRoot): void {
       ariaPressed: "false",
       title: "Toggle line wrap",
     });
-    parent.children[index] = element("div", { className: ["code-block"] }, [toggle, pre]);
+    const copy = element("button", {
+      type: "button",
+      className: ["code-copy"],
+      ariaLabel: "Copy code",
+      title: "Copy code",
+    });
+    parent.children[index] = element("div", { className: ["code-block"] }, [toggle, copy, pre]);
     return [SKIP, index + 1];
   });
 }

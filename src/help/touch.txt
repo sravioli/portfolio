@@ -1,0 +1,53 @@
+*touch.txt*  Using the portfolio on a touch screen
+
+Everything works with taps; keys are optional. This file lists what each part
+of the screen does. Commands still work through the command line at the
+bottom, see |touch-commands|.
+
+==============================================================================
+SCREEN                                                                 *touch*
+
+Files icon       Top left. Show or hide the file explorer.     *touch-explorer*
+File or folder   Tap a file to open it, or a folder to expand it.
+Back             Go up one level, like `-`.                        *touch-back*
+Search icon      Top right. Find a README by name, see |finder|.  *touch-find*
+?                Open this help.                                   *touch-help*
+Breadcrumb       Tap a folder or heading in the bar above the README to
+                 jump to it.                                 *touch-breadcrumb*
+Outline          List the headings of the README and jump to one.
+                                                              *touch-outline*
+Copy link        Copy the address of the README, see |copy-link|.
+Image            Tap it for a full-screen preview, see |image-preview|.
+Wrap icon        On a code block, wrap long lines, see |code-wrap|.
+
+==============================================================================
+HELP ON A PHONE                                                   *touch-help-window*
+
+Help covers the README while open, and the buttons at the top act on it
+instead of the README:
+
+Back             Return to where you were before the last link, like CTRL-T.
+                 With nowhere to go back to, close help.
+Search icon      Search this help file, see |help-search|.
+?                Go to the list of help files, |help-topics|.
+×                In the help file bar: close help and return to the README.
+
+On a wide screen the same happens while the help window has focus, like the
+current window in Vim.
+
+Tap any underlined link to follow it. The page address changes with it, so
+you can share a link to a help topic.
+
+==============================================================================
+COMMANDS ON TOUCH                                             *touch-commands*
+
+Tap the command line at the bottom and type a command, such as `:help motions`
+or `/install`. The most useful ones:
+
+`/pattern`       Search the open README, see |/|.
+`:nohl`          Clear search highlighting.
+`:e` {path}      Open a README by project path, see |:edit|.
+`:q`             Return to the listing.
+`:NvimTreeToggle`  Show or hide the files.
+
+The full list is in |commands.txt|.

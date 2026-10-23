@@ -1,0 +1,51 @@
+*reading.txt*  Reading a README
+
+A README opens on the right. It has a cursor, like a Neovim buffer, which the
+keys below move. Click anywhere to put the cursor there.
+
+==============================================================================
+SCROLLING                                                            *reading*
+
+h j k l      Move the cursor left, down, up, or right.              *hjkl*
+{count}      Put a number before a motion to repeat it, as in `5j`. *count*
+gg           Go to the first line, or to line {count}.                  *gg*
+G            Go to the last line, or to line {count}, as in `12G`.       *G*
+CTRL-D       Scroll half a page down.                                *CTRL-D*
+CTRL-U       Scroll half a page up.                                  *CTRL-U*
+]]           Go to the next heading.                                    *]]*
+[[           Go to the previous heading.                                *[[*
+
+Many more motions work, see |motions.txt|.
+
+==============================================================================
+LINKS AND JUMPS                                                        *links*
+
+gx           Follow the link under the cursor, or play the video.       *gx*
+<Enter>      The same as `gx`. On an image, open the preview.
+CTRL-O       Jump back to the previous position, even in another README.
+                                                                      *CTRL-O*
+CTRL-I       Jump forward again.                                     *CTRL-I*
+
+                                                                    *jumplist*
+Following a link inside the portfolio, or jumping with |G|, |%|, or |H|, adds
+to the jump list. The browser Back button also works.
+
+==============================================================================
+RAW VIEW                                                            *raw-view*
+
+p            Toggle between the rendered README and its Markdown source.  *p*
+
+==============================================================================
+IMAGES AND CODE                                               *image-preview*
+
+Click or tap an image, or press <Enter> on it, to see it full screen. Press
+<Esc> to close the preview.
+
+Long lines in code blocks scroll sideways. The wrap button at the top right of
+a code block wraps them instead.                                  *code-wrap*
+
+==============================================================================
+OUTLINE                                                              *outline*
+
+On narrow screens, the Outline button above the README lists its headings.
+Pick one to jump to it.

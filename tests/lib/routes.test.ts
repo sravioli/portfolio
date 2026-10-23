@@ -7,6 +7,12 @@ import {
   documentUrl,
   entryFromPath,
   fragmentUrl,
+  helpFragmentUrl,
+  helpPageFromPath,
+  helpPageUrl,
+  helpTagFromHash,
+  helpTagUrl,
+  HELP_INDEX_PAGE,
   pageTitle,
   pageDescription,
   rawUrl,
@@ -15,6 +21,29 @@ import {
 } from "../../src/lib/routes.ts";
 
 describe("routes", () => {
+  test("help pages have pretty URLs, tag fragments, and fragments to fetch", () => {
+    assert.equal(helpPageUrl(HELP_INDEX_PAGE), "/help/");
+    assert.equal(helpPageUrl("clipboard"), "/help/clipboard/");
+    assert.equal(helpTagUrl("clipboard", "clipboard-errors"), "/help/clipboard/#help-clipboard-errors");
+    assert.equal(helpTagUrl("commands", ":help"), "/help/commands/#help-%3Ahelp");
+    assert.equal(helpFragmentUrl("clipboard"), "/help-fragments/clipboard.html");
+  });
+
+  test("help paths and fragments resolve back to pages and tags", () => {
+    assert.equal(helpPageFromPath("/help/"), "help");
+    assert.equal(helpPageFromPath("/help"), "help");
+    assert.equal(helpPageFromPath("/help/clipboard/"), "clipboard");
+    assert.equal(helpPageFromPath("/portfolio/help/clipboard/", "/portfolio/"), "clipboard");
+    assert.equal(helpPageFromPath("/help/clipboard/", "/portfolio/"), null);
+    assert.equal(helpPageFromPath("/chrono/"), null);
+    assert.equal(helpPageFromPath("/help/a/b/"), null);
+    assert.equal(helpTagFromHash("#help-clipboard-errors"), "clipboard-errors");
+    assert.equal(helpTagFromHash("#help-%3Ahelp"), ":help");
+    assert.equal(helpTagFromHash("#help-"), null);
+    assert.equal(helpTagFromHash("#intro"), null);
+    assert.equal(helpTagFromHash(""), null);
+  });
+
   test("page descriptions are project-specific with a site fallback", () => {
     assert.equal(pageDescription(undefined), SITE_DESCRIPTION);
     assert.equal(pageDescription(rootEntry), SITE_DESCRIPTION);
