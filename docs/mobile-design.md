@@ -66,6 +66,14 @@ The tree becomes toggleable on every device.
   - file name and scroll percentage;
   - byte size, encoding, file format, and branch are dropped.
 
+## Leader bindings
+
+`src/nvim/leader-bindings.ts` owns the leader sequences, action identifiers, popup
+descriptions, icons, and groups. The which-key popup and keyboard dispatch share
+that catalog. Focus, reading-state rules, and prefix timing remain in their
+existing handlers. Help stays hand-written; tests check that its leader key rows
+and tags match the catalog.
+
 ## Touch controls
 
 - **Floating action button** opens a which-key-style bottom sheet with large

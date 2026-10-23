@@ -1,5 +1,6 @@
 import type { NavigationState } from "../lib/navigation-state.ts";
 import { resolveHelpTag } from "../lib/help.ts";
+import { leaderAction } from "./leader-bindings.ts";
 
 export type KeyAction =
   | "Ignored"
@@ -42,7 +43,6 @@ const readingOnly: Readonly<Record<string, KeyAction>> = {
   "]]": "NextHeading",
   "[[": "PreviousHeading",
   "<C-l>": "FocusPreview",
-  "<leader>bx": "CloseDocument",
   "<C-c>": "CopyDocument",
   "<C-o>": "JumpBack",
   "<C-i>": "JumpForward",
@@ -86,16 +86,18 @@ export class KeymapHandler {
 
     const waitingForSecondG = this.#waitingForSecondG;
     if (key !== "g") this.#waitingForSecondG = false;
+    const leader = key.startsWith("<leader>") ? leaderAction(key.slice("<leader>".length)) : undefined;
 
-    if (key === "<leader>e" && state.isExplorerOpen && explorerFocused) {
+    if (leader === "ToggleExplorer" && state.isExplorerOpen && explorerFocused) {
       state.isExplorerOpen = false;
       return "CloseExplorer";
     }
-    if (key === "<leader>e" || key === "<C-h>") {
+    if (leader === "ToggleExplorer" || key === "<C-h>") {
       state.isExplorerOpen = true;
       return "FocusExplorer";
     }
-    if (key === "<leader>ff" || key === "<C-p>") return "OpenFileFinder";
+    if (leader === "OpenFileFinder" || key === "<C-p>") return "OpenFileFinder";
+    if (leader === "CloseDocument") return state.isReading ? "CloseDocument" : "Ignored";
     if (Object.hasOwn(readingOnly, key)) return state.isReading ? readingOnly[key] : "Ignored";
     if (key === "gx") return state.isReading || state.isWelcome ? "FollowLink" : "Ignored";
     if (key === "n" && state.isReading && !explorerFocused && state.searchQuery.length > 0)

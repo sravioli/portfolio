@@ -48,6 +48,10 @@ export function isOpen() { return state.open; }
 export function hide() { state.open = false; }
 export function show(title, items, handlers) { state.open = true; state.titles.push(title); state.handlers = handlers; }`;
 const whichKeyModule = `data:text/javascript;base64,${Buffer.from(whichKeyStub).toString("base64")}`;
+const realPick = new URL("../../src/nvim/pick-menu.js", import.meta.url).href;
+const pickStub = `export * from ${JSON.stringify(realPick)};
+export function start() { globalThis.pickStarts++; return false; }`;
+const pickModule = `data:text/javascript;base64,${Buffer.from(pickStub).toString("base64")}`;
 const whichKey = (globalThis.whichKey = {
   open: false,
   titles: [],
@@ -69,6 +73,7 @@ function flushTimers() {
 const module = await importHomeModule({
   "../nvim/nvim-cursor.js": cursorModule,
   "../nvim/which-key.js": whichKeyModule,
+  "../nvim/pick-menu.js": pickModule,
 });
 let now = 100;
 let helpOpen = false;
@@ -121,6 +126,7 @@ globalThis.document = {
 };
 
 function initialize(leader = "\\", enabled = true) {
+  globalThis.pickStarts = 0;
   calls.length = 0;
   allCursorCalls.length = 0;
   helpCursorCalls.length = 0;
@@ -553,5 +559,32 @@ test("leader semicolon starts pick mode in JS without calling .NET", async () =>
   initialize(" ");
   await key(" ");
   assert.equal((await key(";")).prevented, true);
+  assert.equal(globalThis.pickStarts, 1);
   assert.equal(calls.length, 0);
+});
+
+test("which-key picker row starts pick mode locally and closes the popup", async () => {
+  initialize(",");
+  await key(",");
+  flushTimers();
+  whichKey.handlers.onSelect(";");
+  await Promise.resolve();
+  assert.equal(globalThis.pickStarts, 1);
+  assert.equal(whichKey.open, false);
+  assert.equal(calls.length, 0);
+});
+
+test("picker leader binding stays inactive with disabled keys or help focus", async () => {
+  initialize(" ", false);
+  await key(" ");
+  await key(";");
+  assert.equal(globalThis.pickStarts, 0);
+  assert.equal(calls.length, 0);
+
+  initialize(" ");
+  helpOpen = true;
+  await key(" ", { target: helpTarget });
+  await key(";", { target: helpTarget });
+  assert.equal(globalThis.pickStarts, 0);
+  assert.equal(calls.some(([method]) => method === "OnKeyDown"), false);
 });

@@ -3,6 +3,7 @@ import * as readmeSearch from "../nvim/readme-search.js";
 import * as pick from "../nvim/pick-menu.js";
 import * as viewer from "./js/image-viewer.js";
 import * as whichKey from "../nvim/which-key.js";
+import { leaderAction } from "../nvim/leader-bindings.ts";
 import { createMotionParser, isModifierKey } from "../nvim/vim-motions.js";
 import { createFlash } from "../nvim/flash.js";
 import { PREFIX_TIMEOUT_MS } from "../nvim/keyboard.js";
@@ -101,7 +102,7 @@ function continueLeader(key) {
   const sequence = leaderSuffix + key;
   if (LEADER_MAPS.includes(sequence)) {
     resetLeader();
-    if (sequence === ";") {
+    if (leaderAction(sequence) === "PickBreadcrumb") {
       pick.start();
       return null;
     }

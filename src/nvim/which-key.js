@@ -1,19 +1,11 @@
 // which-key.nvim-style popup listing the keys that can follow a pending prefix.
+import { LEADER_TREE } from "./leader-bindings.ts";
+
+export { LEADER_TREE };
+
 export const DELAY = 300;
 
-export const LEADER_TREE = {
-  e: { desc: "Toggle the explorer", icon: "\u{f0645}" },
-  ";": { desc: "Dropbar pick", icon: "\u{f0c9}" },
-  b: {
-    group: "buffer",
-    keys: { x: { desc: "Close the tab", icon: "\u{f0156}" } },
-  },
-  f: {
-    group: "find",
-    keys: { f: { desc: "Find READMEs", icon: "\u{f0349}" } },
-  },
-};
-
+/** @returns {string[]} */
 export function leaderMaps(tree = LEADER_TREE, prefix = "") {
   return Object.entries(tree).flatMap(([key, node]) =>
     node.keys ? leaderMaps(node.keys, prefix + key) : [prefix + key],
