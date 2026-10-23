@@ -202,6 +202,12 @@ async function onKeyDown(event) {
     viewer.handleKey(event.key);
     return;
   }
+  // The outline is an ordinary list of links: Tab, Enter, and Esc behave natively.
+  if (document.querySelector("dialog.outline-dialog[open]")) {
+    resetLeader();
+    resetBracket();
+    return;
+  }
   if (pick.isActive()) {
     event.preventDefault();
     resetLeader();

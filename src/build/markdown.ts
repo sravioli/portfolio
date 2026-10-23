@@ -11,6 +11,10 @@ import { unified } from "unified";
 import { SKIP, visit } from "unist-util-visit";
 import { find, isRoot, type PortfolioEntry } from "../lib/catalog.ts";
 import { fileUrl, HOST, OWNER, BRANCH, rawFileUrl } from "../lib/github-urls.ts";
+import { documentUrl, entryFromPath, siteUrl } from "../lib/routes.ts";
+
+const documentFileLabel = (entry: PortfolioEntry): string =>
+  isRoot(entry) ? "README" : entry.name;
 
 const ALLOWED_TAGS = new Set([
   "a", "abbr", "b", "blockquote", "br", "code", "del", "dd", "details", "div", "dl", "dt", "em",
@@ -92,6 +96,17 @@ export function slugify(value: string): string {
   return normalized.length === 0 ? "section" : normalized;
 }
 
+// Documents written in this repository link to other catalog documents and to site assets by path,
+// so those links stay on the site, work without JavaScript, and can be copied or opened in a new tab.
+function resolveLocalDocumentUrl(entry: PortfolioEntry, value: string, image: boolean): string | null {
+  if (!entry.isReadmeLocal || value.startsWith("//") || value.startsWith("#")) return null;
+  if (image) return value.startsWith("/") ? siteUrl(value) : null;
+  const target = entryFromPath(`/${value.replace(/^(\.\/)+|^\/+/, "")}`, "/");
+  return target ? documentUrl(target) : null;
+}
+
+const isSitePath = (value: string): boolean => value.startsWith("/") && !value.startsWith("//");
+
 function normalizeRepositoryPath(path: string): string {
   const segments: string[] = [];
   for (const segment of path.split("/")) {
@@ -108,6 +123,8 @@ function normalizeRepositoryPath(path: string): string {
 export function resolveUrl(entry: PortfolioEntry, value: string, image: boolean): string {
   const absolute = parseAbsoluteUrl(value);
   if (absolute) return absolute.href;
+  const local = resolveLocalDocumentUrl(entry, value, image);
+  if (local !== null) return local;
   const repository = isRoot(entry) ? OWNER : entry.repository;
   const directory =
     entry.readmePath === null
@@ -189,7 +206,12 @@ function rewriteResourceUrls(tree: HastRoot, entry: PortfolioEntry): void {
     } else if (node.tagName === "img") {
       const src = stringProperty(node, "src");
       if (src === null) return;
-      const resolved = parseAbsoluteUrl(resolveUrl(entry, src, true));
+      const local = resolveUrl(entry, src, true);
+      if (isSitePath(local)) {
+        node.properties.src = local;
+        return;
+      }
+      const resolved = parseAbsoluteUrl(local);
       if (!resolved || (resolved.protocol !== "http:" && resolved.protocol !== "https:")) {
         delete node.properties.src;
         return;
@@ -312,6 +334,13 @@ function markInternalRepositoryLinks(tree: HastRoot): void {
   visit(tree, "element", (anchor: Element) => {
     if (anchor.tagName !== "a") return;
     const href = stringProperty(anchor, "href");
+    if (href !== null && isSitePath(href)) {
+      const target = entryFromPath(href);
+      if (!target) return;
+      anchor.properties.dataInternalRepo = target.repository;
+      anchor.properties.title = `Open ${documentFileLabel(target)} here`;
+      return;
+    }
     const repository = href === null ? null : tryGetRepository(href);
     if (repository === null || find(repository) === null) return;
     anchor.properties.dataInternalRepo = repository;

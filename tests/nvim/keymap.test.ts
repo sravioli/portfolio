@@ -118,7 +118,7 @@ describe("KeymapHandler", () => {
     const cases: [key: string, expected: number][] = [
       ["j", 1],
       ["ArrowDown", 1],
-      ["G", 4],
+      ["G", 5],
     ];
     for (const [key, expected] of cases) {
       test(`${key} -> ${expected}`, () => {

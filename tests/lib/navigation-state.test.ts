@@ -19,10 +19,10 @@ describe("NavigationState", () => {
     state.closeDocument();
 
     assert.equal(state.entries, entries);
-    assert.equal(entries.length, 5);
+    assert.equal(entries.length, 6);
     assert.deepEqual(
       entries.map((item) => item.name),
-      ["README.md", "chrono/", "nvim/", "wezterm/", "wezterm-plugins/"],
+      ["README.md", "featured.md", "chrono/", "nvim/", "wezterm/", "wezterm-plugins/"],
     );
     // The C# runtime read-only check (IList.Clear throwing NotSupportedException) has no
     // TS equivalent; read-only-ness is enforced by the `readonly ExplorerItem[]` type.
@@ -31,19 +31,19 @@ describe("NavigationState", () => {
   test("open selected folder toggle replaces snapshot without mutating previous listing", () => {
     const state = new NavigationState();
     const collapsed = state.entries;
-    state.selectIndex(4);
+    state.selectIndex(5);
 
     state.openSelected();
     const expanded = state.entries;
     state.openSelected();
 
     assert.notEqual(expanded, collapsed);
-    assert.equal(expanded.length, 17);
-    assert.equal(expanded[4].isExpanded, true);
+    assert.equal(expanded.length, 18);
+    assert.equal(expanded[5].isExpanded, true);
     assert.notEqual(state.entries, expanded);
     assert.deepEqual(state.entries, collapsed);
-    assert.equal(collapsed.length, 5);
-    assert.equal(collapsed[4].isExpanded, false);
+    assert.equal(collapsed.length, 6);
+    assert.equal(collapsed[5].isExpanded, false);
   });
 
   test("collapse selected expanded parent invalidates only when tree changes", () => {
@@ -56,7 +56,7 @@ describe("NavigationState", () => {
     state.collapseSelected();
 
     assert.notEqual(state.entries, expanded);
-    assert.equal(state.entries.length, 5);
+    assert.equal(state.entries.length, 6);
     assert.equal(state.selectedEntry.isExpanded, false);
     assert.ok(expanded.some((item) => item.name === "memo.wz"));
   });
@@ -71,7 +71,7 @@ describe("NavigationState", () => {
     state.goToParent();
 
     assert.notEqual(expanded, collapsed);
-    assert.equal(expanded.length, 17);
+    assert.equal(expanded.length, 18);
     assert.equal(state.entries, expanded);
     assert.equal(state.selectedEntry.name, "beacon.wz");
     assert.equal(state.isReading, false);
@@ -264,7 +264,7 @@ describe("NavigationState", () => {
 
   test("open selected folder while welcoming preserves welcome until file opens", () => {
     const state = new NavigationState();
-    state.selectIndex(1);
+    state.selectIndex(2);
 
     state.openSelected();
 
@@ -274,7 +274,7 @@ describe("NavigationState", () => {
     assert.equal(state.selectedEntry.name, "chrono/");
     assert.equal(state.selectedEntry.isExpanded, true);
 
-    state.selectIndex(2);
+    state.selectIndex(3);
     state.openSelected();
     assert.equal(state.isWelcome, false);
     assert.equal(state.isReading, true);
@@ -294,17 +294,17 @@ describe("NavigationState", () => {
   test("go to parent from expanded folder collapses it without replacing tree", () => {
     const state = new NavigationState();
     state.goToParent();
-    state.selectIndex(4);
+    state.selectIndex(5);
     state.openSelected();
     state.goToParent();
 
-    assert.equal(state.selectedIndex, 4);
+    assert.equal(state.selectedIndex, 5);
     assert.equal(state.selectedEntry.name, "wezterm-plugins/");
     assert.equal(state.selectedEntry.isExpanded, false);
-    assert.equal(state.entries.length, 5);
+    assert.equal(state.entries.length, 6);
   });
 
-  test("navigate to nvim opens placeholder readme", () => {
+  test("navigate to nvim opens its local readme", () => {
     const state = new NavigationState();
 
     const entry = state.navigateTo("nvim");
@@ -329,7 +329,7 @@ describe("NavigationState", () => {
   test("open selected plugin file opens its readme and preserves parent selection", () => {
     const state = new NavigationState();
     state.goToParent();
-    state.selectIndex(4);
+    state.selectIndex(5);
     state.openSelected();
     state.selectIndex(state.entries.findIndex((item) => item.name === "memo.wz"));
 
@@ -350,7 +350,7 @@ describe("NavigationState", () => {
   test("open selected folder while reading expands inline and preserves document", () => {
     const state = new NavigationState();
     state.openSelected();
-    state.selectIndex(4);
+    state.selectIndex(5);
 
     const document = state.openSelected();
 
@@ -360,11 +360,11 @@ describe("NavigationState", () => {
     assert.equal(state.currentFolder, rootEntry);
     assert.equal(state.selectedEntry.name, "wezterm-plugins/");
     assert.equal(state.selectedEntry.isExpanded, true);
-    assert.equal(state.entries.length, 17);
+    assert.equal(state.entries.length, 18);
 
-    assert.equal(state.entries[5].depth, 1);
-    assert.equal(state.entries[5].name, "README.md");
-    assert.equal(state.entries[6].name, "beacon.wz");
+    assert.equal(state.entries[6].depth, 1);
+    assert.equal(state.entries[6].name, "README.md");
+    assert.equal(state.entries[7].name, "beacon.wz");
     assert.equal(
       state.entries.some((item) => item.name === "../"),
       false,
@@ -373,7 +373,7 @@ describe("NavigationState", () => {
 
   test("open selected expanded folder hides children and keeps other folders expanded", () => {
     const state = new NavigationState();
-    state.selectIndex(1);
+    state.selectIndex(2);
     state.openSelected();
     state.selectIndex(state.entries.findIndex((item) => item.name === "wezterm-plugins/"));
     state.openSelected();
@@ -385,7 +385,7 @@ describe("NavigationState", () => {
       false,
     );
     assert.ok(state.entries.some((item) => item.name === "chrono/" && item.isExpanded));
-    assert.equal(state.entries[2].name, "README.md");
+    assert.equal(state.entries[3].name, "README.md");
   });
 
   test("navigate to hidden plugin expands ancestors and selects file", () => {

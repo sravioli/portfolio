@@ -32,8 +32,10 @@ describe("readmeSource", () => {
     assert.equal(await readmeSource(rootEntry), ROOT_README_SOURCE);
   });
 
-  test("entries without a README say so", async () => {
-    assert.equal(await readmeSource(find("nvim")!), NO_README_SOURCE);
+  test("local documents are read from src/documents", async () => {
+    assert.match(await readmeSource(find("nvim")!), /^# nvim\r?\n/);
+    assert.match(await readmeSource(find("featured.md")!), /^# Featured\r?\n/);
+    assert.notEqual(await readmeSource(find("nvim")!), NO_README_SOURCE);
   });
 
   test("published READMEs are read from fixtures without a BOM", async () => {

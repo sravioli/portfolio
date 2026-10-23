@@ -1,11 +1,13 @@
 import test, { describe } from "node:test";
 import assert from "node:assert/strict";
 import {
+  documentFileName,
   find,
   getAncestry,
   getListing,
   getPickMenu,
   isRoot,
+  isStandaloneDocument,
   pickKey,
   rootEntry,
 } from "../../src/lib/catalog.ts";
@@ -14,7 +16,16 @@ describe("PortfolioCatalog", () => {
   test("get listing root returns readme then projects in order", () => {
     const names = getListing(rootEntry).map((item) => item.name);
 
-    assert.deepEqual(names, ["README.md", "chrono/", "nvim/", "wezterm/", "wezterm-plugins/"]);
+    assert.deepEqual(names, ["README.md", "featured.md", "chrono/", "nvim/", "wezterm/", "wezterm-plugins/"]);
+  });
+
+  test("featured.md is a standalone document named after itself", () => {
+    const featured = find("featured.md")!;
+
+    assert.equal(isStandaloneDocument(featured), true);
+    assert.equal(documentFileName(featured), "featured.md");
+    assert.equal(getListing(rootEntry)[1].kind, "projectFile");
+    assert.equal(documentFileName(find("chrono")!), "README.md");
   });
 
   test("get listing plugin folder returns parent readme and all plugins", () => {
@@ -28,11 +39,13 @@ describe("PortfolioCatalog", () => {
     assert.equal(find("nap.wz")!.readmePath, "README.md");
   });
 
-  test("get listing nvim does not invent a readme", () => {
+  test("get listing nvim publishes its local readme", () => {
     const listing = getListing(find("nvim")!);
 
-    assert.equal(listing.length, 1);
-    assert.equal(listing[0].kind, "parent");
+    assert.deepEqual(
+      listing.map((item) => item.kind),
+      ["parent", "readme"],
+    );
   });
 
   test("get ancestry plugin file returns root to entry", () => {
@@ -50,7 +63,7 @@ describe("PortfolioCatalog", () => {
 
     assert.deepEqual(
       menu.map((item) => item.label),
-      ["README.md", "chrono", "nvim", "wezterm", "wezterm-plugins"],
+      ["README.md", "featured.md", "chrono", "nvim", "wezterm", "wezterm-plugins"],
     );
     assert.deepEqual(menu[0], {
       key: "readme:",
@@ -64,7 +77,7 @@ describe("PortfolioCatalog", () => {
     assert.equal(plugins[0].hasChildren, true);
     const nvim = menu.filter((item) => item.label === "nvim");
     assert.equal(nvim.length, 1);
-    assert.equal(nvim[0].hasChildren, false);
+    assert.equal(nvim[0].hasChildren, true);
   });
 
   test("get pick menu plugin folder uses keys matching breadcrumb segments", () => {

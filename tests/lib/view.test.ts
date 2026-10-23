@@ -4,10 +4,14 @@ import { find, rootEntry } from "../../src/lib/catalog.ts";
 import { search, totalCount } from "../../src/lib/file-search.ts";
 import { NavigationState } from "../../src/lib/navigation-state.ts";
 import {
+  documentOutline,
+  githubUrl,
   previewKey,
+  renderDocumentActions,
   renderExplorerEntries,
   renderFinderResults,
   renderNotFound,
+  renderOutline,
   renderRawDocument,
   renderShell,
   renderTabline,
@@ -41,17 +45,61 @@ describe("view", () => {
     assert.match(renderRawDocument("<b>&</b>", "next"), /<span class="raw-line">&lt;b&gt;&amp;&lt;\/b&gt;<\/span>/);
   });
 
-  test("explorer entries are indexed buttons with a single selection", () => {
+  test("explorer files are links to their pages and folders stay toggle buttons", () => {
     const state = new NavigationState();
     state.selectIndex(1);
     const html = renderExplorerEntries({ ...welcomeModel(), state });
-    assert.equal(count(html, /<button type="button" class="entry/g), state.entries.length);
+    const files = state.entries.filter((item) => item.kind !== "folder").length;
+    assert.equal(count(html, /<a class="entry[^"]*" href="\//g), files);
+    assert.equal(count(html, /<button type="button" class="entry/g), state.entries.length - files);
+    assert.match(html, /<a class="entry selected" href="\/featured\.md\/" data-index="1"/);
+    assert.match(html, /href="\/readme\/"/);
     assert.deepEqual(
       [...html.matchAll(/data-index="(\d+)"/g)].map((match) => Number(match[1])),
       state.entries.map((_, index) => index),
     );
-    assert.equal(count(html, /class="entry selected" data-index="1"/g), 1);
+    assert.equal(count(html, /class="entry selected"/g), 1);
     assert.equal(count(html, /selected/g), 1);
+  });
+
+  test("welcome README actions are real links", () => {
+    const html = renderWelcome(welcomeModel());
+    assert.match(html, /<a href="\/readme\/" data-action="open-readme"/);
+    assert.match(html, /<a href="\/featured\.md\/" data-action="open-featured"/);
+  });
+
+  test("document actions offer outline, GitHub, and copy link while reading", () => {
+    const source = '<h1 id="chrono">chrono</h1><h2 id="usage">Usage &amp; CLI</h2><h4 id="deep">Deep</h4>';
+    const model = documentModel({ entry: find("chrono")!, html: source, bytes: 1, lines: 1 } as never);
+    const html = renderDocumentActions(model);
+    assert.match(html, /data-action="outline" aria-haspopup="dialog"(?![^>]*disabled)/);
+    assert.match(html, /href="https:\/\/github\.com\/sravioli\/chrono" target="_blank" rel="noopener noreferrer"/);
+    assert.match(html, /\(opens in a new tab\)/);
+    assert.match(html, /data-action="copy-link"/);
+    assert.equal(renderDocumentActions(welcomeModel()), "");
+
+    model.state.isRawView = true;
+    assert.match(renderDocumentActions(model), /data-action="outline"[^>]*disabled/);
+  });
+
+  test("document outline lists h1 to h3 headings by level", () => {
+    assert.deepEqual(
+      documentOutline('<h1 id="a">A</h1><h2 id="b">B <code>c</code></h2><h3 id="d">D</h3><h4 id="e">E</h4><h2>no id</h2>'),
+      [
+        { id: "a", level: 1, title: "A" },
+        { id: "b", level: 2, title: "B c" },
+        { id: "d", level: 3, title: "D" },
+      ],
+    );
+    const model = documentModel({ entry: find("chrono")!, html: '<h2 id="x">X</h2>', bytes: 1, lines: 1 } as never);
+    assert.match(renderOutline(model), /<li class="outline-level-2"><a href="#x" data-readme-heading/);
+  });
+
+  test("GitHub destinations match the kind of document", () => {
+    assert.equal(githubUrl(rootEntry), "https://github.com/sravioli");
+    assert.equal(githubUrl(find("memo.wz")!), "https://github.com/sravioli/memo.wz");
+    assert.match(githubUrl(find("featured.md")!), /\/sravioli\/portfolio\/blob\/[^/]+\/src\/documents\/featured\.md$/);
+    assert.match(githubUrl(find("wezterm-plugins")!), /tab=repositories/);
   });
 
   test("finder results are indexed options with a single selection", () => {

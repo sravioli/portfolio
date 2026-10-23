@@ -31,6 +31,14 @@ export const hasReadme = (entry: PortfolioEntry): boolean =>
 
 export const isRoot = (entry: PortfolioEntry): boolean => entry.repository.length === 0;
 
+/** A local file shown as itself (e.g. `featured.md`) rather than as a folder with a README. */
+export const isStandaloneDocument = (entry: PortfolioEntry): boolean =>
+  entry.isProjectFile && entry.isReadmeLocal;
+
+/** File name shown for an entry's document in the breadcrumb, statusline, and errors. */
+export const documentFileName = (entry: PortfolioEntry): string =>
+  isStandaloneDocument(entry) ? entry.name : "README.md";
+
 export function explorerItem(
   name: string,
   kind: ExplorerItemKind,
@@ -71,8 +79,16 @@ const root = entry(
   "Simone Fidanza's projects",
   "README.md",
   [
+    entry(
+      "featured.md",
+      "featured.md",
+      "Three projects worth a closer look, with the problem, the demo, and the trade-offs.",
+      null,
+      [],
+      { isProjectFile: true, isReadmeLocal: true },
+    ),
     project("chrono", "Zero-dependency benchmarking for Lua."),
-    project("nvim", "My Neovim configuration.", null),
+    entry("nvim", "nvim", "My Neovim configuration.", null, [], { isReadmeLocal: true }),
     project("wezterm", "My WezTerm configuration."),
     entry(
       "wezterm-plugins",
@@ -86,7 +102,7 @@ const root = entry(
         plugin("lantern", "Configurable selection menus."),
         plugin("log", "Lightweight, pluggable logging."),
         plugin("memo", "Memoization, caching, and persistent state."),
-        plugin("nap", "WezTerm plugin.", "README.md"),
+        plugin("nap", "A lazy.nvim-inspired plugin manager for WezTerm.", "README.md"),
         plugin("ribbon", "Styled text segments for WezTerm UI."),
         plugin("sigil", "Icons and identity colors."),
         plugin("warden", "Schema validation for plugins and configuration."),
@@ -147,6 +163,7 @@ export const getPath = (item: PortfolioEntry): string[] =>
 
 export function getReadmePath(item: PortfolioEntry): string {
   const repositoryPath = getPath(item).slice(1).join("/");
+  if (isStandaloneDocument(item)) return repositoryPath;
   const readmePath = item.readmePath ?? "README.md";
   return repositoryPath.length > 0 ? `${repositoryPath}/${readmePath}` : readmePath;
 }

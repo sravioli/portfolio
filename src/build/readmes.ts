@@ -11,21 +11,41 @@ import { rawFileUrl, repositoryUrl, REPOSITORIES_API_URL } from "../lib/github-u
 
 export const ROOT_README_SOURCE = `# Hi, I'm Simone.
 
-I work with .NET. I build Lua tools in my own time.
+I'm an Associate Product Software Engineer at Wolters Kluwer Italia, in Bari. At work I build and
+maintain .NET product software: C# services, ASP.NET back ends, and MAUI apps.
 
-## At work
+Outside work I make tools for the tools I use every day. I like small, well-tested libraries with
+honest documentation, editors that get out of the way, and measuring before optimizing.
 
-C#, ASP.NET, and MAUI.
+## Where to start
 
-## Outside work
+- [featured.md](featured.md) — three projects with the problem, the demo, my part, and one
+  technical decision each. Includes before/after numbers for this site's move from Blazor to Astro.
+- [chrono](chrono/) — a zero-dependency benchmarking engine for Lua 5.1 and LuaJIT.
+- [wezterm-plugins](wezterm-plugins/) — eleven small, composable plugins for the WezTerm terminal.
+- [nvim](nvim/) — the Neovim setup this site imitates.
 
-WezTerm plugins, Neovim, Python, and some C/C++.
+## What I use
 
-[GitHub](https://github.com/sravioli)
+C#, ASP.NET, and MAUI at work. Lua, Python, and some C/C++ in my own time.
+
+## Contact
+
+Email me at [s.fidanza@pm.me](mailto:s.fidanza@pm.me), or find me on
+[LinkedIn](https://www.linkedin.com/in/simone-fidanza/) and [GitHub](https://github.com/sravioli).
 
 \`j/k move · gx open link · - parent · :Ex explorer · ? help\``;
 
 export const NO_README_SOURCE = "No README published.";
+
+// Documents written for this site, read from src/documents at build time.
+const LOCAL_DOCUMENTS: Readonly<Record<string, string>> = {
+  "featured.md": "featured.md",
+  nvim: "nvim.md",
+};
+
+export const localDocumentPath = (file: string): string =>
+  path.join(process.cwd(), "src", "documents", file);
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -89,10 +109,15 @@ async function buildPluginReadme(): Promise<string> {
 
 /** Returns the README source shown for an entry, fetching published READMEs at build time. */
 export async function readmeSource(entry: PortfolioEntry): Promise<string> {
-  if (entry.isReadmeLocal) return isRoot(entry) ? ROOT_README_SOURCE : buildPluginReadme();
+  if (entry.isReadmeLocal) {
+    if (isRoot(entry)) return ROOT_README_SOURCE;
+    const file = LOCAL_DOCUMENTS[entry.repository];
+    if (file !== undefined) return stripBom(await readFile(localDocumentPath(file), "utf8"));
+    return buildPluginReadme();
+  }
   if (!hasReadme(entry)) return NO_README_SOURCE;
   return readPublishedReadme(entry);
 }
 
-// Entries without a README (nvim) still open as a document that says so, like the original app.
+// Entries without a README still open as a document that says so, like the original app.
 export const documentEntries = (): readonly PortfolioEntry[] => allEntries();

@@ -50,7 +50,8 @@ def site_text(dist_directory, source_directory):
         fragments.extend(parser.fragments)
 
     for path in sorted(dist_directory.rglob("*.md")):
-        fragments.append(path.read_text(encoding="utf-8"))
+        if path.is_file():
+            fragments.append(path.read_text(encoding="utf-8"))
 
     for path in sorted(source_directory.rglob("*")):
         if path.is_file() and path.suffix in SOURCE_EXTENSIONS:

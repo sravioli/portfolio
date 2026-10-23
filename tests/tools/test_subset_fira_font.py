@@ -26,6 +26,8 @@ class FiraFontTests(unittest.TestCase):
                 '<p title="tooltip">Rendered &amp; escaped</p>', encoding="utf-8"
             )
             (dist / "readme.md").write_text("Raw _Markdown_", encoding="utf-8")
+            (dist / "featured.md").mkdir()
+            (dist / "featured.md" / "index.html").write_text("<p>Page</p>", encoding="utf-8")
             (source / "view.ts").write_text("const label = 'source text';", encoding="utf-8")
 
             text = FONT_TOOL.site_text(dist, source)

@@ -282,4 +282,15 @@ describe("renderMarkdown", () => {
       assert.doesNotMatch(html, /data-internal-repo/);
     });
   }
+
+  test("local documents link to catalog pages and site images", () => {
+    const html = renderMarkdown(
+      "[chord](wezterm-plugins/chord.wz/) [chrono](/chrono/) [elsewhere](missing/) ![shot](/screenshots/nvim.webp)",
+      find("featured.md")!,
+    );
+    assert.match(html, /href="\/wezterm-plugins\/chord\.wz\/"/);
+    assert.match(html, /href="\/chrono\/"/);
+    assert.doesNotMatch(html, /href="\/missing\/"/);
+    assert.match(html, /src="\/screenshots\/nvim\.webp"/);
+  });
 });

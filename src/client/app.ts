@@ -1,4 +1,4 @@
-import { getPickMenu, type PortfolioEntry } from "../lib/catalog.ts";
+import { documentFileName, getPickMenu, type PortfolioEntry } from "../lib/catalog.ts";
 import { CommandHistory } from "../nvim/command-history.ts";
 import { handleCommand } from "../nvim/commands.ts";
 import { copiedLineCount } from "../lib/format.ts";
@@ -94,6 +94,10 @@ export function start(): void {
   const commandLine = new Region(commandForm);
   const helpDialog = required<HTMLDialogElement>(document, ".help-dialog");
   const help = new Region(helpDialog);
+  const documentActions = new Region(required(shell, ".document-actions"));
+  const outlineDialog = required<HTMLDialogElement>(document, ".outline-dialog");
+  const outline = new Region(outlineDialog);
+  let outlineOpen = false;
 
   let loading = false;
   let loadError: string | null = null;
@@ -146,6 +150,7 @@ export function start(): void {
     syncThemeToggle();
     explorer.update(view.renderExplorerEntries(current));
     breadcrumb.update(view.renderBreadcrumb(current));
+    documentActions.update(view.renderDocumentActions(current));
     openErrorHost.update(view.renderOpenError(openError));
     renderPreview(current);
     statusline.className = view.statuslineClass(current);
@@ -156,6 +161,12 @@ export function start(): void {
     help.update(view.renderHelp(current));
     syncExplorer();
     if (helpDialog.open !== state.isHelpOpen) home.setHelpOpen(helpDialog, state.isHelpOpen);
+    if (outlineOpen && (!view.documentLoaded(current) || state.isRawView)) outlineOpen = false;
+    outline.update(view.renderOutline(current));
+    if (outlineDialog.open !== outlineOpen) {
+      if (outlineOpen) outlineDialog.showModal();
+      else outlineDialog.close();
+    }
   }
 
   function renderPreview(current: view.ViewModel): void {
@@ -340,7 +351,7 @@ export function start(): void {
       if (state.currentDocument === entry) documentSource = source;
       return source;
     } catch (error) {
-      if (state.currentDocument === entry) state.showError(`E484: Can't open file README.md: ${errorMessage(error)}`);
+      if (state.currentDocument === entry) state.showError(`E484: Can't open file ${documentFileName(entry)}: ${errorMessage(error)}`);
       return null;
     }
   }
@@ -403,6 +414,22 @@ export function start(): void {
     if (await home.copyText(source)) state.message = `${copiedLineCount(source)} lines yanked into "+`;
     else state.showError('clipboard: No provider. Try ":h clipboard".');
     render();
+  }
+
+  async function copyLink(): Promise<void> {
+    const entry = state.currentDocument;
+    if (entry === null) return;
+    const url = new URL(documentUrl(entry), location.href).href;
+    if (await home.copyText(url)) state.message = `Copied link: ${url}`;
+    else state.showError('clipboard: No provider. Try ":h clipboard".');
+    render();
+  }
+
+  // Jumping to a heading moves focus to the document itself; otherwise it returns to the Outline button.
+  function closeOutline(restoreFocus = true): void {
+    outlineOpen = false;
+    render();
+    if (restoreFocus) documentActions.element.querySelector<HTMLElement>('[data-action="outline"]')?.focus();
   }
 
   function showOpenError(message: string): void {
@@ -688,6 +715,14 @@ export function start(): void {
       focusExplorer();
     },
     "open-readme": () => openRepository(""),
+    "open-featured": () => openRepository("featured.md"),
+    outline: () => {
+      outlineOpen = true;
+      render();
+      outlineDialog.querySelector<HTMLElement>("a")?.focus();
+    },
+    "close-outline": closeOutline,
+    "copy-link": copyLink,
     "open-selected": openSelected,
     retry: retryReadme,
     "dismiss-open-error": dismissOpenError,
@@ -699,15 +734,29 @@ export function start(): void {
 
   document.addEventListener("click", (event) => {
     if (event.button !== 0 || !(event.target instanceof Element)) return;
+    // Modified clicks on links keep their browser meaning: new tab, new window, download.
+    const modified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+    if (modified && event.target.closest("a[href]") !== null) return;
+    if (outlineOpen) {
+      if (event.target === outlineDialog) {
+        closeOutline();
+        return;
+      }
+      if (event.target.closest(".outline-dialog a[data-readme-heading]") !== null) closeOutline(false);
+    }
     const entry = event.target.closest<HTMLElement>(".entry-list .entry[data-index]");
     if (entry !== null) {
+      event.preventDefault();
       state.selectIndex(Number(entry.dataset.index));
       void openSelected();
       return;
     }
     const button = event.target.closest<HTMLElement>("[data-action]");
     const action = button?.dataset.action;
-    if (action !== undefined && Object.hasOwn(ACTIONS, action)) void ACTIONS[action]();
+    if (action !== undefined && Object.hasOwn(ACTIONS, action)) {
+      if (button instanceof HTMLAnchorElement) event.preventDefault();
+      void ACTIONS[action]();
+    }
   });
 
   commandForm.addEventListener("submit", (event) => {
@@ -728,6 +777,10 @@ export function start(): void {
     event.preventDefault();
     state.isHelpOpen = false;
     render();
+  });
+  outlineDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeOutline();
   });
   window.addEventListener("popstate", onPopState);
 

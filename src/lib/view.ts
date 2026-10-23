@@ -1,11 +1,14 @@
 import {
+  documentFileName,
   findParent,
   getAncestry,
   hasReadme,
   isRoot,
+  isStandaloneDocument,
   pickKey,
   rootEntry,
   type ExplorerItem,
+  type PortfolioEntry,
 } from "./catalog.ts";
 import type { FileSearchResult } from "./file-search.ts";
 import {
@@ -20,7 +23,8 @@ import {
 import { attr, escapeHtml } from "./html.ts";
 import { controlNotation, leaderNotation } from "../nvim/key-notation.ts";
 import type { NavigationState } from "./navigation-state.ts";
-import { siteUrl } from "./routes.ts";
+import { documentUrl, siteUrl } from "./routes.ts";
+import { fileUrl, repositoryUrl } from "./github-urls.ts";
 
 export interface HeadingBreadcrumb {
   readonly id: string;
@@ -100,20 +104,26 @@ export function renderTabline({ state }: ViewModel): string {
 
 // ---------------------------------------------------------------- explorer
 
+// Documents are real links, so they open in a new tab, copy, and work without JavaScript;
+// folders only toggle, so they stay buttons.
 export function renderExplorerEntry(item: ExplorerItem, index: number, selected: boolean): string {
   const folder = item.kind === "folder";
   const indent = '<span class="tree-indent" aria-hidden="true"></span>'.repeat(item.depth);
   const chevron = folder ? (item.isExpanded ? "⌄" : "›") : "";
   const icon = folder ? (item.isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER) : ICON_FILE;
   const name = folder ? `<strong>${text(item.name)}</strong>` : `<span>${text(item.name)}</span>`;
+  const link = !folder && item.entry !== null;
+  const open = link
+    ? `<a class="entry${selected ? " selected" : ""}"${attr("href", documentUrl(item.entry!))}`
+    : `<button type="button" class="entry${selected ? " selected" : ""}"`;
   return (
-    `<button type="button" class="entry${selected ? " selected" : ""}" data-index="${index}"` +
+    `${open} data-index="${index}"` +
     `${attr("aria-current", selected ? "true" : null)}` +
     `${attr("aria-expanded", folder ? String(item.isExpanded) : null)}` +
     `${attr("title", item.entry?.description)}>` +
     `${indent}<span class="tree-chevron" aria-hidden="true">${chevron}</span>` +
     `<span class="entry-icon ${folder ? "folder-icon" : "file-icon"}" aria-hidden="true">${icon}</span>` +
-    `${name}</button>`
+    `${name}${link ? "</a>" : "</button>"}`
   );
 }
 
@@ -137,10 +147,15 @@ export function renderHeadingCrumbs(headings: readonly HeadingBreadcrumb[]): str
     .join("");
 }
 
+/** Folder that holds a document: a standalone file like `featured.md` lives in its parent. */
+export const documentFolder = (entry: PortfolioEntry): PortfolioEntry =>
+  isStandaloneDocument(entry) ? (findParent(entry) ?? rootEntry) : entry;
+
 export function renderBreadcrumb(model: ViewModel): string {
   const { state } = model;
+  const folder = documentFolder(state.currentFolder);
   let html = `<span aria-hidden="true">${ICON_FOLDER}</span>`;
-  for (const entry of getAncestry(state.currentFolder)) {
+  for (const entry of getAncestry(folder)) {
     const parent = findParent(entry);
     if (!isRoot(entry)) html += '<span class="crumb-divider">›</span>';
     html +=
@@ -148,11 +163,14 @@ export function renderBreadcrumb(model: ViewModel): string {
       `${attr("data-pick-current", pickKey(entry))}>${text(entry.name)}</span>`;
   }
   if (state.isReading) {
-    const repository = state.currentFolder.repository;
+    const repository = folder.repository;
+    const current = isStandaloneDocument(state.currentFolder)
+      ? pickKey(state.currentFolder)
+      : `readme:${repository}`;
     html +=
       `<span class="crumb-divider">›</span><span aria-hidden="true">${ICON_FILE}</span>` +
       `<span class="crumb" data-pick-segment${attr("data-pick-menu", repository)}` +
-      `${attr("data-pick-current", `readme:${repository}`)}>README.md</span>`;
+      `${attr("data-pick-current", current)}>${text(documentFileName(state.currentFolder))}</span>`;
     if (!state.isRawView && !model.loading && model.loadError === null)
       html += renderHeadingCrumbs(model.headings);
   }
@@ -167,19 +185,27 @@ const EOB_LONG = '<div class="eob-markers" aria-hidden="true">~<br>~<br>~<br>~<b
 export function renderWelcome(model: ViewModel): string {
   const { state } = model;
   const find = text(leaderNotation("ff", state.devNotation, state.leaderLabel));
+  const readme = attr("href", documentUrl(rootEntry));
+  const featured = rootEntry.children.find(isStandaloneDocument);
+  const featuredHint = (verb: string): string =>
+    featured === undefined
+      ? ""
+      : `<a${attr("href", documentUrl(featured))} data-action="open-featured"><span>${verb} <span class="welcome-key">${text(featured.name)}</span></span><span>for three projects in depth</span></a>`;
   return (
     `<section class="welcome-screen" aria-label="Welcome"><h1>SRAVIO.LI</h1>` +
     `<p>Simone Fidanza<br>.NET dev - C#, ASP.NET, MAUI. I also write Lua, Python, and some C/C++.<br>` +
     `<a href="https://github.com/sravioli">github.com/sravioli</a></p>` +
     `<div class="welcome-hints keyboard-hints">` +
-    `<button type="button" data-action="open-readme"><span>open <span class="welcome-key">README.md</span></span><span>to get to know me</span></button>` +
+    `<a${readme} data-action="open-readme"><span>open <span class="welcome-key">README.md</span></span><span>to get to know me</span></a>` +
+    featuredHint("open") +
     `<button type="button" data-action="focus-explorer"><span>press <span class="welcome-key">j / k</span></span><span>to browse projects with the tree focused</span></button>` +
     `<button type="button" data-action="open-selected"><span>press <span class="welcome-key">Enter</span></span><span>to open the selection</span></button>` +
     `<button type="button" data-action="find"><span>press <span class="welcome-key">${find}</span></span><span>to find a file</span></button>` +
     `<div><span>press <span class="welcome-key">gx</span></span><span>to open the link under the cursor</span></div>` +
     `<button type="button" data-action="help"><span>type <span class="welcome-key">:help<span class="welcome-enter">&lt;Enter&gt;</span></span></span><span>for keyboard help</span></button>` +
     `</div><div class="welcome-hints touch-hints">` +
-    `<button type="button" data-action="open-readme"><span>read <span class="welcome-key">README.md</span></span><span>to get to know me</span></button>` +
+    `<a${readme} data-action="open-readme"><span>read <span class="welcome-key">README.md</span></span><span>to get to know me</span></a>` +
+    featuredHint("read") +
     `<button type="button" data-action="open-explorer"><span>tap <span class="welcome-key welcome-icon" aria-hidden="true">${ICON_EXPLORER}</span><span class="visually-hidden">Files</span> top left</span><span>to browse projects</span></button>` +
     `<button type="button" data-action="find"><span>tap <span class="welcome-key welcome-icon" aria-hidden="true">${ICON_FIND}</span><span class="visually-hidden">Find</span> top right</span><span>to search for a project</span></button>` +
     `<button type="button" data-action="help"><span>tap <span class="welcome-key">?</span> top right</span><span>to see what else you can do</span></button>` +
@@ -213,13 +239,15 @@ export function previewKey(model: ViewModel): string {
 export function renderPreview(model: ViewModel): string {
   const { state } = model;
   if (state.isWelcome) return renderWelcome(model);
-  if (state.isReading && model.loadError !== null)
+  if (state.isReading && model.loadError !== null) {
+    const file = text(documentFileName(state.currentDocument ?? state.currentFolder));
     return (
-      `<div class="readme-load-error"><p class="readme-error-title" role="alert">E484: Can't open file README.md</p>` +
-      `<p class="readme-error-actions"><button type="button" data-action="retry" aria-label=":e — retry opening README.md">:e</button>` +
+      `<div class="readme-load-error"><p class="readme-error-title" role="alert">E484: Can't open file ${file}</p>` +
+      `<p class="readme-error-actions"><button type="button" data-action="retry" aria-label=":e — retry opening ${file}">:e</button>` +
       `<span>Retry opening the file</span></p>` +
       `<details><summary>Error details</summary><p>${text(model.loadError)}</p></details></div>`
     );
+  }
   if (documentLoaded(model)) {
     const repository = state.currentDocument?.repository ?? "";
     const body = state.isRawView
@@ -251,7 +279,7 @@ const pathParts = (path: SplitPath): string =>
   `<span class="cwd-head">${text(path.head)}</span><span class="cwd-tail">${text(path.tail)}</span>`;
 
 function cwdSegment(model: ViewModel): string {
-  const paths = statusPaths(model.state.currentFolder);
+  const paths = statusPaths(documentFolder(model.state.currentFolder));
   return (
     `<span class="cwd-segment"><span aria-hidden="true">${ICON_FOLDER}</span>` +
     `<i class="cwd-path cwd-full">${pathParts(paths.full)}</i>` +
@@ -301,7 +329,7 @@ export function renderStatusline(model: ViewModel): string {
       `<div class="status-left">${state.isCommandMode ? modeBlock("COMMAND", "C") : modeBlock("NORMAL", "N")}` +
       `<span class="power-arrow blue-arrow" aria-hidden="true"></span>${cwdSegment(model)}` +
       `<span class="power-arrow surface-arrow" aria-hidden="true"></span>` +
-      `<span class="file-segment"><span aria-hidden="true">${ICON_FILE}</span> README.md</span>` +
+      `<span class="file-segment"><span aria-hidden="true">${ICON_FILE}</span> ${text(documentFileName(state.currentDocument ?? state.currentFolder))}</span>` +
       `<span class="power-arrow file-arrow" aria-hidden="true"></span>` +
       `<span class="branch-segment"><span aria-hidden="true">&#xe0a0;</span> main</span></div>` +
       `<div class="status-right"><span class="byte-size">${size} <span aria-hidden="true">${ICON_SIZE}</span></span>` +
@@ -469,6 +497,79 @@ export function renderHelp({ state }: ViewModel): string {
   );
 }
 
+// ---------------------------------------------------------------- document actions
+
+/** Where the current document lives on GitHub: its repository, or this site's source for local pages. */
+export function githubUrl(entry: PortfolioEntry): string {
+  const profile = repositoryUrl("").replace(/\/$/, "");
+  if (isRoot(entry)) return profile;
+  if (isStandaloneDocument(entry)) return fileUrl(SITE_REPOSITORY, `src/documents/${entry.name}`);
+  if (entry.isReadmeLocal && entry.children.length > 0)
+    return `${profile}?tab=repositories&q=${encodeURIComponent(".wz")}`;
+  return repositoryUrl(entry.repository);
+}
+
+const SITE_REPOSITORY = "portfolio";
+
+export interface OutlineItem {
+  readonly id: string;
+  readonly title: string;
+  readonly level: number;
+}
+
+const OUTLINE_HEADING = /<h([1-3])\b[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/g;
+
+let outlineCache: { html: string; items: OutlineItem[] } | null = null;
+
+/** Top three heading levels of the rendered document; titles stay HTML-escaped. */
+export function documentOutline(html: string | null): OutlineItem[] {
+  if (html === null) return [];
+  if (outlineCache?.html === html) return outlineCache.items;
+  const items = [...html.matchAll(OUTLINE_HEADING)]
+    .map(([, level, id, inner]) => ({
+      id,
+      level: Number(level),
+      title: inner.replace(/<[^>]*>/g, "").trim(),
+    }))
+    .filter((item) => item.title.length > 0);
+  outlineCache = { html, items };
+  return items;
+}
+
+/** Touch and narrow-screen actions for the open document; hidden on wide pointer layouts by CSS. */
+export function renderDocumentActions(model: ViewModel): string {
+  const { state } = model;
+  const entry = state.currentDocument;
+  if (!state.isReading || entry === null) return "";
+  const outline = !state.isRawView && documentLoaded(model) && documentOutline(model.documentHtml).length > 0;
+  return (
+    `<button type="button" data-action="outline" aria-haspopup="dialog"${outline ? "" : " disabled"}>` +
+    `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6h16M8 12h12M8 18h12"/></svg>Outline</button>` +
+    `<a${attr("href", githubUrl(entry))} target="_blank" rel="noopener noreferrer">` +
+    `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>` +
+    `Open on GitHub<span class="visually-hidden"> (opens in a new tab)</span></a>` +
+    `<button type="button" data-action="copy-link">` +
+    `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>` +
+    `Copy link</button>`
+  );
+}
+
+/** Contents of the outline dialog; the dialog element itself is static. */
+export function renderOutline(model: ViewModel): string {
+  const items = documentOutline(model.documentHtml);
+  const list = items
+    .map(
+      (item) =>
+        `<li class="outline-level-${item.level}"><a href="#${text(item.id)}"${attr("data-readme-heading", item.id)}>${item.title}</a></li>`,
+    )
+    .join("");
+  return (
+    `<div class="outline-heading"><h2 id="outline-title">Outline</h2>` +
+    `<button type="button" data-action="close-outline" aria-label="Close outline">×</button></div>` +
+    `<nav aria-labelledby="outline-title"><ol class="outline-list">${list}</ol></nav>`
+  );
+}
+
 // ---------------------------------------------------------------- shell
 
 export const EXPLORER_STORAGE_KEY = "portfolio.explorer";
@@ -498,12 +599,14 @@ export function renderShell(model: ViewModel): string {
     `<nav class="entry-list" aria-label="Project files">${renderExplorerEntries(model)}</nav></aside>` +
     `<main id="portfolio-main" class="preview-area">` +
     `<div class="breadcrumb" aria-label="Current location">${renderBreadcrumb(model)}</div>` +
+    `<div class="document-actions" role="toolbar" aria-label="Document actions">${renderDocumentActions(model)}</div>` +
     `<div class="open-error">${renderOpenError(model.openError)}</div>` +
     `<section class="preview-scroll" data-welcome="${state.isWelcome}" tabindex="0">${renderPreview(model)}</section>` +
     `</main></div>` +
     `<footer class="${statuslineClass(model)}">${SEARCH_POSITION}${renderStatusline(model)}</footer>` +
     `<form class="command-line">${renderCommandLine(model)}</form></div>` +
-    `<dialog class="help-dialog" aria-labelledby="help-title">${renderHelp(model)}</dialog>`
+    `<dialog class="help-dialog" aria-labelledby="help-title">${renderHelp(model)}</dialog>` +
+    `<dialog class="outline-dialog" aria-labelledby="outline-title">${renderOutline(model)}</dialog>`
   );
 }
 

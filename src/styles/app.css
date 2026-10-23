@@ -338,6 +338,7 @@ a {
   background: transparent;
   color: var(--text);
   text-align: left;
+  text-decoration: none;
   font-size: 13px;
 }
 
@@ -1206,6 +1207,127 @@ a {
   background: var(--backdrop);
 }
 
+/* Reading actions for touch and narrow screens; wide pointer layouts keep the plain editor chrome. */
+.document-actions {
+  display: none;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .portfolio-shell[data-reading="true"] .document-actions:not(:empty) {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 4px 8px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .document-actions > * {
+    display: inline-flex;
+    flex: 1 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .document-actions > :hover {
+    background: var(--raised);
+  }
+
+  .document-actions > :disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  .document-actions svg {
+    color: var(--blue);
+  }
+}
+
+@media (max-width: 420px) {
+  .document-actions svg {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) and (pointer: coarse) {
+  .tabline .keys-toggle {
+    display: none;
+  }
+}
+
+.outline-dialog {
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 12px 16px 16px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.outline-dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.outline-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.outline-heading h2 {
+  margin: 0;
+  color: var(--gold);
+  font-size: 14px;
+}
+
+.outline-heading button {
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.outline-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outline-list a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.outline-list a:hover,
+.outline-list a:focus-visible {
+  background: var(--raised);
+}
+
+.outline-level-2 a {
+  padding-left: 24px;
+}
+
+.outline-level-3 a {
+  padding-left: 40px;
+  color: var(--muted);
+}
+
 .help-heading {
   display: flex;
   justify-content: space-between;
@@ -1616,9 +1738,39 @@ kbd {
     display: none;
   }
 
+  /* Toolbar controls match the 44px explorer rows; the tabline grows to hold them. */
+  .tabline,
+  .portfolio-shell[data-reading="false"] .tabline {
+    flex-basis: 44px;
+    height: 44px;
+  }
+
+  .explorer-label,
+  .portfolio-shell[data-reading="false"] .explorer-label {
+    min-width: 44px;
+    height: 44px;
+    line-height: 44px;
+  }
+
+  .active-tab {
+    height: 34px;
+    margin-top: 10px;
+  }
+
+  .tabline .tab-close {
+    min-width: 44px;
+    align-self: stretch;
+  }
+
+  .tabline .tab-actions,
+  .portfolio-shell[data-reading="false"] .tab-actions {
+    gap: 2px;
+    height: 44px;
+  }
+
   .tab-actions button {
-    min-width: 32px;
-    min-height: 26px;
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 
@@ -1809,8 +1961,13 @@ kbd {
   line-height: inherit;
 }
 
-.welcome-screen button:hover .welcome-key {
+.welcome-screen button:hover .welcome-key,
+.welcome-screen .welcome-hints > a:hover .welcome-key {
   color: var(--gold);
+}
+
+.welcome-screen .welcome-hints > a:hover {
+  text-decoration: none;
 }
 
 .welcome-screen .welcome-key {
@@ -1848,7 +2005,8 @@ kbd {
   display: block;
 }
 
-:root[data-touch-input] .welcome-screen .touch-hints > button {
+:root[data-touch-input] .welcome-screen .touch-hints > button,
+:root[data-touch-input] .welcome-screen .touch-hints > a {
   min-height: 44px;
 }
 

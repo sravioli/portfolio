@@ -84,7 +84,16 @@ The tree becomes toggleable on every device.
 - **Welcome screen:** touch wording that points at what is on screen (the
   explorer, search and `?` icons and where they sit); every line is tappable.
 - **Fake cursor** (`nvim-cursor`) is hidden; `~` end-of-buffer markers stay.
-- Touch targets are at least 44px.
+- **Document actions:** while a document is open on a narrow or coarse-pointer
+  layout, a toolbar under the tabline offers Outline (a modal listing the h1–h3
+  headings; disabled in raw view), Open on GitHub (new tab), and Copy link.
+- **Links:** explorer files and the welcome README/featured actions are real
+  `<a href>` elements, so they can be opened in a new tab, copied, or followed
+  without JavaScript; plain clicks are enhanced into in-app navigation.
+  Folder toggles stay buttons.
+- Touch targets are at least 44px, including the tabline buttons. Below 420px
+  on touch devices the keyboard-shortcuts toggle is hidden to leave room for the
+  tab title, and the document actions drop their icons.
 
 ## Short viewports
 
@@ -96,9 +105,10 @@ still follows the width rule.
 
 - Done: explorer toggle (desktop and drawer), narrow layout, compact
   statusline, touch welcome screen, short viewports, touch-first help, code
-  wrap toggle.
-- Pending: floating action button and sheet, full-screen finder, outline sheet,
-  collapsed breadcrumbs, sticky heading bar, hiding the fake cursor on touch.
+  wrap toggle, document actions (outline dialog, Open on GitHub, Copy link),
+  44px toolbar targets.
+- Pending: floating action button and sheet, full-screen finder, collapsed
+  breadcrumbs, sticky heading bar, hiding the fake cursor on touch.
 
 ## Out of scope
 
