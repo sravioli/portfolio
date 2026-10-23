@@ -5,14 +5,15 @@ import { ERROR_UI, EXPLORER_SCRIPT, renderShell, type ViewModel } from "../lib/v
 
 interface Props {
   title: string;
+  description: string;
   model: ViewModel;
 }
 
-const { title, model } = Astro.props;
+const { title, description, model } = Astro.props;
 const metrics = JSON.stringify(await documentMetrics()).replaceAll("<", "\\u003c");
 ---
 
-<Base title={title}>
+<Base title={title} description={description}>
   <Fragment set:html={renderShell(model)} />
   <script is:inline set:html={EXPLORER_SCRIPT} />
   <script is:inline type="application/json" id="portfolio-data" set:html={metrics} />

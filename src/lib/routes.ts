@@ -35,6 +35,16 @@ export const SITE_TITLE = "Simone's Portfolio";
 export const pageTitle = (entry: PortfolioEntry | undefined): string =>
   entry === undefined ? SITE_TITLE : `${isRoot(entry) ? "README" : entry.name} | ${SITE_TITLE}`;
 
+export const SITE_DESCRIPTION =
+  "Simone Fidanza, .NET developer. Lua tooling, WezTerm plugins, and dotfiles, presented as a Neovim session.";
+
+/** Meta and Open Graph description of a page; `undefined` is the welcome screen. */
+export function pageDescription(entry: PortfolioEntry | undefined): string {
+  if (entry === undefined || isRoot(entry)) return SITE_DESCRIPTION;
+  const description = entry.description.replace(/\.$/, "");
+  return `${entry.name}: ${description}. Part of Simone Fidanza's portfolio.`;
+}
+
 /** Resolves a pathname to a document; `undefined` means the welcome screen, `null` means unknown. */
 export function entryFromPath(pathname: string, basePath = BASE_PATH): PortfolioEntry | null | undefined {
   const base = basePath.replace(/\/$/, "");

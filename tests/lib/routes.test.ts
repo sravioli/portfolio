@@ -8,11 +8,22 @@ import {
   entryFromPath,
   fragmentUrl,
   pageTitle,
+  pageDescription,
   rawUrl,
   siteUrl,
+  SITE_DESCRIPTION,
 } from "../../src/lib/routes.ts";
 
 describe("routes", () => {
+  test("page descriptions are project-specific with a site fallback", () => {
+    assert.equal(pageDescription(undefined), SITE_DESCRIPTION);
+    assert.equal(pageDescription(rootEntry), SITE_DESCRIPTION);
+    const chrono = pageDescription(find("chrono")!);
+    assert.match(chrono, /^chrono: /);
+    assert.match(chrono, /Simone Fidanza's portfolio\.$/);
+    assert.doesNotMatch(chrono, /\.\. /);
+  });
+
   test("deployment base prefixes assets and resolves project pages without escaping the site", () => {
     for (const base of ["/portfolio", "/portfolio/"]) {
       assert.equal(siteUrl("", base), "/portfolio/");

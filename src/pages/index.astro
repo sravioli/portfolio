@@ -1,7 +1,7 @@
 ---
 import Shell from "../layouts/Shell.astro";
 import { welcomeModel } from "../build/model.ts";
-import { pageTitle } from "../lib/routes.ts";
+import { pageDescription, pageTitle } from "../lib/routes.ts";
 ---
 
-<Shell title={pageTitle(undefined)} model={welcomeModel()} />
+<Shell title={pageTitle(undefined)} description={pageDescription(undefined)} model={welcomeModel()} />
