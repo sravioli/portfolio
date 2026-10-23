@@ -285,7 +285,7 @@ a {
 }
 
 .portfolio-shell[data-explorer="closed"] .tabline {
-  grid-template-columns: auto minmax(0, 1fr) 0 auto;
+  grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto;
 }
 
 .portfolio-shell[data-explorer="closed"] .explorer-label-text,

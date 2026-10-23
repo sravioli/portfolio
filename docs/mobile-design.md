@@ -36,6 +36,8 @@ The tree becomes toggleable on every device.
 - The tabline "File Explorer" label becomes a clickable toggle with a tree icon.
 - When hidden, the preview takes the full width; the existing `88ch` cap keeps
   lines readable.
+- The active tab stays sized to its contents when the tree is hidden; extra
+  tabline space remains between the tab and the right-aligned actions.
 
 ### Narrow layout
 
